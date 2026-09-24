@@ -1,5 +1,14 @@
 import React, { useState, useEffect } from "react";
 import {
+  DndContext,
+  useDroppable,
+  useDraggable,
+  useSensor,
+  useSensors,
+  PointerSensor,
+  type DragEndEvent,
+} from "@dnd-kit/core";
+import {
   ArrowLeft,
   Share2,
   Clock,
@@ -11,14 +20,185 @@ import {
   Play,
   Pause,
   RotateCcw,
-  Sparkles,
   Users,
   Check,
   AlertCircle,
+  FileDown,
+  Target,
+  GripVertical,
 } from "lucide-react";
-import type { UserSession, RetroPhase, Card } from "@ci-retro/types";
+import type { UserSession, RetroPhase, Card, Column } from "@ci-retro/types";
 import { useRetroRoom } from "../hooks/useRetroRoom";
+import { ExportModal } from "./ExportModal";
+import { ActionItemsDrawer } from "./ActionItemsDrawer";
 
+// Draggable Card Component
+interface DraggableCardProps {
+  card: Card;
+  votesCount: number;
+  isVoted: boolean;
+  onVote: () => void;
+  onDelete: () => void;
+}
+
+const DraggableCard: React.FC<DraggableCardProps> = ({
+  card,
+  votesCount,
+  isVoted,
+  onVote,
+  onDelete,
+}) => {
+  const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({
+    id: card.id,
+    data: { card },
+  });
+
+  const style: React.CSSProperties = {
+    transform: transform ? `translate3d(${transform.x}px, ${transform.y}px, 0)` : undefined,
+    opacity: isDragging ? 0.4 : 1,
+    zIndex: isDragging ? 999 : 1,
+  };
+
+  const isMasked = card.content === "••••••••••••";
+
+  return (
+    <div
+      ref={setNodeRef}
+      style={{
+        ...style,
+        padding: "12px 14px",
+        borderRadius: "var(--radius-sm)",
+        background: "var(--bg-secondary)",
+        border: "1px solid var(--border-color)",
+        display: "flex",
+        flexDirection: "column",
+        gap: "10px",
+        boxShadow: "var(--shadow-sm)",
+        position: "relative",
+        userSelect: "none",
+      }}
+    >
+      <div style={{ display: "flex", alignItems: "flex-start", gap: "6px" }}>
+        {/* Drag handle */}
+        <div
+          {...attributes}
+          {...listeners}
+          title="Přetáhnout kartu do jiného sloupce"
+          style={{
+            cursor: "grab",
+            color: "var(--text-dim)",
+            padding: "2px 0",
+            display: "flex",
+            alignItems: "center",
+          }}
+        >
+          <GripVertical size={16} />
+        </div>
+
+        {/* Card Content with Safe Blur */}
+        <p
+          style={{
+            flex: 1,
+            fontSize: "0.92rem",
+            lineHeight: "1.45",
+            margin: 0,
+            wordBreak: "break-word",
+            filter: isMasked ? "blur(3px)" : "none",
+            userSelect: isMasked ? "none" : "text",
+            opacity: isMasked ? 0.6 : 1,
+          }}
+        >
+          {card.content}
+        </p>
+      </div>
+
+      {/* Card Footer: Author + Vote + Delete */}
+      <div
+        style={{
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "center",
+          paddingTop: "6px",
+          borderTop: "1px solid rgba(255, 255, 255, 0.04)",
+        }}
+      >
+        <span style={{ fontSize: "0.75rem", color: "var(--text-dim)" }}>
+          {card.authorName}
+        </span>
+
+        <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+          {/* Vote Button */}
+          <button
+            onClick={onVote}
+            title={isVoted ? "Odebrat hlas" : "Hlasovat"}
+            style={{
+              padding: "4px 8px",
+              borderRadius: "var(--radius-sm)",
+              background: isVoted ? "var(--accent-indigo)" : "rgba(255, 255, 255, 0.05)",
+              color: isVoted ? "#ffffff" : "var(--text-main)",
+              display: "flex",
+              alignItems: "center",
+              gap: "5px",
+              fontSize: "0.8rem",
+              fontWeight: 700,
+              border: "1px solid var(--border-color)",
+            }}
+          >
+            <ThumbsUp size={13} />
+            <span>{votesCount}</span>
+          </button>
+
+          {/* Delete Button */}
+          <button
+            onClick={onDelete}
+            title="Smazat kartu"
+            style={{
+              background: "transparent",
+              color: "var(--text-dim)",
+              padding: "4px",
+            }}
+          >
+            <Trash2 size={14} />
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+// Droppable Column Component
+interface DroppableColumnProps {
+  column: Column;
+  cards: Card[];
+  children: React.ReactNode;
+}
+
+const DroppableColumn: React.FC<DroppableColumnProps> = ({ column, children }) => {
+  const { isOver, setNodeRef } = useDroppable({
+    id: column.id,
+  });
+
+  return (
+    <div
+      ref={setNodeRef}
+      className="glass-panel"
+      style={{
+        display: "flex",
+        flexDirection: "column",
+        background: isOver ? "rgba(99, 102, 241, 0.08)" : "var(--bg-card)",
+        borderRadius: "var(--radius-md)",
+        border: isOver ? "1px solid var(--accent-indigo)" : "1px solid var(--border-color)",
+        borderTop: `4px solid ${column.color}`,
+        maxHeight: "calc(100vh - 180px)",
+        transition: "background 0.2s ease, border-color 0.2s ease",
+      }}
+    >
+      {children}
+    </div>
+  );
+};
+
+// Main BoardView
 interface BoardViewProps {
   roomId: string;
   user: UserSession;
@@ -35,22 +215,38 @@ export const BoardView: React.FC<BoardViewProps> = ({ roomId, user, onBack }) =>
     remainingVotes,
     addCard,
     deleteCard,
+    moveCard,
     castVote,
     removeVote,
     setPhase,
     toggleBlur,
     controlTimer,
     setTyping,
+    addActionItem,
+    updateActionItem,
   } = useRetroRoom({ roomId, user });
 
-  // Lokální stavy formulářů
+  // Lokální stavy pro modály a formuláře
   const [activeNewCardColumn, setActiveNewCardColumn] = useState<string | null>(null);
   const [newCardText, setNewCardText] = useState("");
   const [isAnonymous, setIsAnonymous] = useState(false);
   const [copiedLink, setCopiedLink] = useState(false);
 
+  // Modály
+  const [isExportOpen, setIsExportOpen] = useState(false);
+  const [isActionItemsOpen, setIsActionItemsOpen] = useState(false);
+
   // Synchronizovaný lokální odpočet času
   const [secondsLeft, setSecondsLeft] = useState<number | null>(null);
+
+  // Konfigurace pointer senzoru s minimální tolerancí pohybu (pro zamezení nechtěného dragu při kliknutí)
+  const sensors = useSensors(
+    useSensor(PointerSensor, {
+      activationConstraint: {
+        distance: 5,
+      },
+    })
+  );
 
   useEffect(() => {
     if (!state?.timerEndsAt) {
@@ -61,8 +257,22 @@ export const BoardView: React.FC<BoardViewProps> = ({ roomId, user, onBack }) =>
     const interval = setInterval(() => {
       const diff = Math.max(0, Math.floor((state.timerEndsAt! - Date.now()) / 1000));
       setSecondsLeft(diff);
-      if (diff <= 0) {
-        clearInterval(interval);
+
+      // Zvukový signál po vypršení (Web Audio API)
+      if (diff === 0) {
+        try {
+          const ctx = new (window.AudioContext || (window as any).webkitAudioContext)();
+          const osc = ctx.createOscillator();
+          const gain = ctx.createGain();
+          osc.type = "sine";
+          osc.frequency.setValueAtTime(587.33, ctx.currentTime); // D5 tón
+          gain.gain.setValueAtTime(0.2, ctx.currentTime);
+          gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 1.2);
+          osc.connect(gain);
+          gain.connect(ctx.destination);
+          osc.start();
+          osc.stop(ctx.currentTime + 1.2);
+        } catch {}
       }
     }, 500);
 
@@ -83,10 +293,27 @@ export const BoardView: React.FC<BoardViewProps> = ({ roomId, user, onBack }) =>
     setTyping(columnId, false);
   };
 
-  // Fáze popisky
+  // Drag & drop ukončení
+  const handleDragEnd = (event: DragEndEvent) => {
+    const { active, over } = event;
+    if (!over || !state) return;
+
+    const cardId = active.id as string;
+    const targetColumnId = over.id as string;
+
+    const currentCard = state.cards.find((c) => c.id === cardId);
+    if (!currentCard) return;
+
+    // Pokud byl přetažen do jiného sloupce
+    if (currentCard.columnId !== targetColumnId) {
+      const targetColumnCards = state.cards.filter((c) => c.columnId === targetColumnId);
+      moveCard(cardId, targetColumnId, targetColumnCards.length);
+    }
+  };
+
   const phaseLabels: Record<RetroPhase, { title: string; color: string }> = {
-    BRAINSTORMING: { title: "1. Brainstorming (Psaní)", color: "var(--accent-indigo)" },
-    GROUPING: { title: "2. Seskupování témat", color: "var(--accent-cyan)" },
+    BRAINSTORMING: { title: "1. Brainstorming", color: "var(--accent-indigo)" },
+    GROUPING: { title: "2. Seskupování", color: "var(--accent-cyan)" },
     VOTING: { title: "3. Hlasování", color: "var(--accent-amber)" },
     DISCUSSION: { title: "4. Diskuze & Časovač", color: "var(--accent-emerald)" },
     ACTION_ITEMS: { title: "5. Akční kroky", color: "var(--accent-rose)" },
@@ -122,7 +349,6 @@ export const BoardView: React.FC<BoardViewProps> = ({ roomId, user, onBack }) =>
     );
   }
 
-  // Agregace hlasů pro karty
   const getCardVotesCount = (cardId: string) => {
     return state.votes.filter((v) => v.cardId === cardId).length;
   };
@@ -131,7 +357,6 @@ export const BoardView: React.FC<BoardViewProps> = ({ roomId, user, onBack }) =>
     return state.votes.some((v) => v.cardId === cardId && v.userSessionId === user.id);
   };
 
-  // Formátování času MM:SS
   const formatTimer = (totalSeconds: number | null) => {
     if (totalSeconds === null) return "5:00";
     const mins = Math.floor(totalSeconds / 60);
@@ -140,529 +365,505 @@ export const BoardView: React.FC<BoardViewProps> = ({ roomId, user, onBack }) =>
   };
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", height: "100%", flex: 1 }}>
-      {/* Sub-header / Board Control Bar */}
-      <div
-        style={{
-          borderBottom: "1px solid var(--border-color)",
-          padding: "12px 24px",
-          background: "var(--bg-secondary)",
-          display: "flex",
-          justifyContent: "space-between",
-          alignItems: "center",
-          flexWrap: "wrap",
-          gap: "16px",
-        }}
-      >
-        <div style={{ display: "flex", alignItems: "center", gap: "16px" }}>
-          <button
-            onClick={onBack}
-            style={{
-              background: "var(--bg-card)",
-              border: "1px solid var(--border-color)",
-              color: "var(--text-main)",
-              padding: "6px 12px",
-              borderRadius: "var(--radius-sm)",
-              display: "flex",
-              alignItems: "center",
-              gap: "6px",
-              fontSize: "0.85rem",
-              fontWeight: 600,
-            }}
-          >
-            <ArrowLeft size={16} /> Zpět
-          </button>
-
-          <div>
-            <h2 style={{ fontSize: "1.2rem", fontWeight: 800, margin: 0, letterSpacing: "-0.02em" }}>
-              {state.title}
-            </h2>
-            <div style={{ display: "flex", alignItems: "center", gap: "10px", marginTop: "2px" }}>
-              <span
-                style={{
-                  fontSize: "0.75rem",
-                  padding: "2px 8px",
-                  borderRadius: "var(--radius-full)",
-                  background: phaseLabels[state.phase]?.color + "22",
-                  color: phaseLabels[state.phase]?.color,
-                  fontWeight: 700,
-                }}
-              >
-                {phaseLabels[state.phase]?.title}
-              </span>
-              <span style={{ fontSize: "0.75rem", color: "var(--text-muted)" }}>
-                Max hlasů: {state.maxVotesPerUser}
-              </span>
-            </div>
-          </div>
-        </div>
-
-        {/* Action Controls: Phase, Timer, Blur, Votes, Presence */}
-        <div style={{ display: "flex", alignItems: "center", gap: "12px", flexWrap: "wrap" }}>
-          {/* Phase Selector (Facilitator tool) */}
-          <select
-            value={state.phase}
-            onChange={(e) => setPhase(e.target.value as RetroPhase)}
-            style={{
-              padding: "6px 12px",
-              borderRadius: "var(--radius-sm)",
-              background: "var(--bg-card)",
-              border: "1px solid var(--border-color)",
-              color: "var(--text-main)",
-              fontSize: "0.85rem",
-              fontWeight: 600,
-            }}
-          >
-            <option value="BRAINSTORMING">1. Brainstorming (Psaní)</option>
-            <option value="GROUPING">2. Seskupování</option>
-            <option value="VOTING">3. Hlasování</option>
-            <option value="DISCUSSION">4. Diskuze & Časovač</option>
-            <option value="ACTION_ITEMS">5. Akční kroky</option>
-            <option value="ARCHIVED">Uzavřít retrospektivu</option>
-          </select>
-
-          {/* Mask / Blur Toggle Button */}
-          <button
-            onClick={() => toggleBlur(!state.cardsBlurred)}
-            title="Skrýt / Odhalit text karet"
-            style={{
-              padding: "6px 12px",
-              borderRadius: "var(--radius-sm)",
-              background: state.cardsBlurred ? "rgba(245, 158, 11, 0.15)" : "var(--bg-card)",
-              border: `1px solid ${state.cardsBlurred ? "var(--accent-amber)" : "var(--border-color)"}`,
-              color: state.cardsBlurred ? "var(--accent-amber)" : "var(--text-muted)",
-              display: "flex",
-              alignItems: "center",
-              gap: "6px",
-              fontSize: "0.85rem",
-              fontWeight: 600,
-            }}
-          >
-            {state.cardsBlurred ? <EyeOff size={16} /> : <Eye size={16} />}
-            {state.cardsBlurred ? "Maskováno" : "Viditelné"}
-          </button>
-
-          {/* Synchronized Timer */}
-          <div
-            style={{
-              display: "flex",
-              alignItems: "center",
-              gap: "6px",
-              padding: "4px 10px",
-              borderRadius: "var(--radius-sm)",
-              background: "var(--bg-card)",
-              border: "1px solid var(--border-color)",
-            }}
-          >
-            <Clock size={16} color="var(--accent-indigo)" />
-            <span
-              style={{
-                fontFamily: "monospace",
-                fontWeight: 700,
-                fontSize: "1rem",
-                color: secondsLeft !== null && secondsLeft < 30 ? "var(--accent-rose)" : "var(--text-main)",
-              }}
-            >
-              {formatTimer(secondsLeft)}
-            </span>
-
-            {state.timerEndsAt ? (
-              <button
-                onClick={() => controlTimer("PAUSE")}
-                title="Pauza"
-                style={{ background: "transparent", color: "var(--text-muted)", padding: "2px" }}
-              >
-                <Pause size={14} />
-              </button>
-            ) : (
-              <button
-                onClick={() => controlTimer("START", 300)}
-                title="Spustit 5 minut"
-                style={{ background: "transparent", color: "var(--accent-emerald)", padding: "2px" }}
-              >
-                <Play size={14} />
-              </button>
-            )}
-
-            <button
-              onClick={() => controlTimer("RESET")}
-              title="Reset"
-              style={{ background: "transparent", color: "var(--text-dim)", padding: "2px" }}
-            >
-              <RotateCcw size={14} />
-            </button>
-          </div>
-
-          {/* Remaining Votes Pill */}
-          <div
-            style={{
-              padding: "6px 12px",
-              borderRadius: "var(--radius-full)",
-              background: "rgba(99, 102, 241, 0.15)",
-              border: "1px solid rgba(99, 102, 241, 0.3)",
-              fontSize: "0.8rem",
-              fontWeight: 700,
-              color: "var(--accent-indigo)",
-            }}
-          >
-            Hlasy: {remainingVotes} zbývá
-          </div>
-
-          {/* Share Link Button */}
-          <button
-            onClick={handleCopyLink}
-            style={{
-              padding: "6px 14px",
-              borderRadius: "var(--radius-sm)",
-              background: copiedLink ? "var(--accent-emerald)" : "var(--accent-indigo)",
-              color: "#ffffff",
-              display: "flex",
-              alignItems: "center",
-              gap: "6px",
-              fontSize: "0.85rem",
-              fontWeight: 600,
-            }}
-          >
-            {copiedLink ? <Check size={16} /> : <Share2 size={16} />}
-            {copiedLink ? "Zkopírováno!" : "Sdílet odkaz"}
-          </button>
-
-          {/* Online Presence Avatars */}
-          <div style={{ display: "flex", alignItems: "center", marginLeft: "6px" }}>
-            {onlineUsers.map((u, i) => (
-              <div
-                key={u.id + i}
-                title={`${u.name} (Online)`}
-                style={{
-                  width: "28px",
-                  height: "28px",
-                  borderRadius: "50%",
-                  background: u.avatarColor || "var(--accent-indigo)",
-                  color: "#fff",
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  fontSize: "0.75rem",
-                  fontWeight: 800,
-                  border: "2px solid var(--bg-secondary)",
-                  marginLeft: i > 0 ? "-8px" : "0",
-                  zIndex: 10 - i,
-                }}
-              >
-                {u.name.slice(0, 1).toUpperCase()}
-              </div>
-            ))}
-          </div>
-        </div>
-      </div>
-
-      {/* Error alert toast */}
-      {lastError && (
+    <DndContext sensors={sensors} onDragEnd={handleDragEnd}>
+      <div style={{ display: "flex", flexDirection: "column", height: "100%", flex: 1 }}>
+        {/* Sub-header / Board Control Bar */}
         <div
           style={{
-            margin: "12px 24px 0",
-            padding: "10px 16px",
-            borderRadius: "var(--radius-sm)",
-            background: "rgba(244, 63, 94, 0.15)",
-            border: "1px solid var(--accent-rose)",
-            color: "var(--accent-rose)",
+            borderBottom: "1px solid var(--border-color)",
+            padding: "12px 24px",
+            background: "var(--bg-secondary)",
             display: "flex",
+            justifyContent: "space-between",
             alignItems: "center",
-            gap: "8px",
-            fontSize: "0.85rem",
-            fontWeight: 600,
+            flexWrap: "wrap",
+            gap: "16px",
           }}
         >
-          <AlertCircle size={18} /> {lastError}
-        </div>
-      )}
-
-      {/* Board Columns Grid */}
-      <div
-        style={{
-          flex: 1,
-          padding: "24px",
-          display: "grid",
-          gridTemplateColumns: `repeat(${state.columns.length}, minmax(300px, 1fr))`,
-          gap: "20px",
-          overflowX: "auto",
-          alignItems: "start",
-        }}
-      >
-        {state.columns.map((column) => {
-          const colCards = state.cards.filter((c) => c.columnId === column.id);
-          const isTypingInCol = typingUsers.some((t) => t.columnId === column.id);
-
-          return (
-            <div
-              key={column.id}
-              className="glass-panel"
+          <div style={{ display: "flex", alignItems: "center", gap: "16px" }}>
+            <button
+              onClick={onBack}
               style={{
-                display: "flex",
-                flexDirection: "column",
                 background: "var(--bg-card)",
-                borderRadius: "var(--radius-md)",
                 border: "1px solid var(--border-color)",
-                borderTop: `4px solid ${column.color}`,
-                maxHeight: "calc(100vh - 180px)",
+                color: "var(--text-main)",
+                padding: "6px 12px",
+                borderRadius: "var(--radius-sm)",
+                display: "flex",
+                alignItems: "center",
+                gap: "6px",
+                fontSize: "0.85rem",
+                fontWeight: 600,
               }}
             >
-              {/* Column Header */}
-              <div
-                style={{
-                  padding: "14px 18px",
-                  display: "flex",
-                  justifyContent: "space-between",
-                  alignItems: "center",
-                  borderBottom: "1px solid var(--border-color)",
-                }}
-              >
-                <h3 style={{ fontSize: "1rem", fontWeight: 700, margin: 0 }}>{column.title}</h3>
+              <ArrowLeft size={16} /> Zpět
+            </button>
+
+            <div>
+              <h2 style={{ fontSize: "1.2rem", fontWeight: 800, margin: 0, letterSpacing: "-0.02em" }}>
+                {state.title}
+              </h2>
+              <div style={{ display: "flex", alignItems: "center", gap: "10px", marginTop: "2px" }}>
                 <span
                   style={{
                     fontSize: "0.75rem",
                     padding: "2px 8px",
                     borderRadius: "var(--radius-full)",
-                    background: "var(--bg-secondary)",
-                    color: "var(--text-muted)",
+                    background: phaseLabels[state.phase]?.color + "22",
+                    color: phaseLabels[state.phase]?.color,
                     fontWeight: 700,
                   }}
                 >
-                  {colCards.length}
+                  {phaseLabels[state.phase]?.title}
+                </span>
+                <span style={{ fontSize: "0.75rem", color: "var(--text-muted)" }}>
+                  Max hlasů: {state.maxVotesPerUser}
                 </span>
               </div>
+            </div>
+          </div>
 
-              {/* Cards List */}
-              <div
+          {/* Action Controls: Phase, Timer, Blur, Votes, Action Items, Export */}
+          <div style={{ display: "flex", alignItems: "center", gap: "10px", flexWrap: "wrap" }}>
+            {/* Phase Selector */}
+            <select
+              value={state.phase}
+              onChange={(e) => setPhase(e.target.value as RetroPhase)}
+              style={{
+                padding: "6px 12px",
+                borderRadius: "var(--radius-sm)",
+                background: "var(--bg-card)",
+                border: "1px solid var(--border-color)",
+                color: "var(--text-main)",
+                fontSize: "0.85rem",
+                fontWeight: 600,
+              }}
+            >
+              <option value="BRAINSTORMING">1. Brainstorming</option>
+              <option value="GROUPING">2. Seskupování</option>
+              <option value="VOTING">3. Hlasování</option>
+              <option value="DISCUSSION">4. Diskuze & Časovač</option>
+              <option value="ACTION_ITEMS">5. Akční kroky</option>
+              <option value="ARCHIVED">Uzavřít retrospektivu</option>
+            </select>
+
+            {/* Mask / Blur Toggle Button */}
+            <button
+              onClick={() => toggleBlur(!state.cardsBlurred)}
+              title="Skrýt / Odhalit text karet"
+              style={{
+                padding: "6px 12px",
+                borderRadius: "var(--radius-sm)",
+                background: state.cardsBlurred ? "rgba(245, 158, 11, 0.15)" : "var(--bg-card)",
+                border: `1px solid ${state.cardsBlurred ? "var(--accent-amber)" : "var(--border-color)"}`,
+                color: state.cardsBlurred ? "var(--accent-amber)" : "var(--text-muted)",
+                display: "flex",
+                alignItems: "center",
+                gap: "6px",
+                fontSize: "0.85rem",
+                fontWeight: 600,
+              }}
+            >
+              {state.cardsBlurred ? <EyeOff size={15} /> : <Eye size={15} />}
+              {state.cardsBlurred ? "Maskováno" : "Viditelné"}
+            </button>
+
+            {/* Synchronized Timer */}
+            <div
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: "6px",
+                padding: "4px 10px",
+                borderRadius: "var(--radius-sm)",
+                background: "var(--bg-card)",
+                border: "1px solid var(--border-color)",
+              }}
+            >
+              <Clock size={15} color="var(--accent-indigo)" />
+              <span
                 style={{
-                  flex: 1,
-                  padding: "14px",
-                  display: "flex",
-                  flexDirection: "column",
-                  gap: "12px",
-                  overflowY: "auto",
-                  minHeight: "150px",
+                  fontFamily: "monospace",
+                  fontWeight: 700,
+                  fontSize: "0.95rem",
+                  color: secondsLeft !== null && secondsLeft < 30 ? "var(--accent-rose)" : "var(--text-main)",
                 }}
               >
-                {colCards.map((card) => {
-                  const votesCount = getCardVotesCount(card.id);
-                  const isVoted = hasUserVotedOnCard(card.id);
-                  const isMasked = card.content === "••••••••••••";
+                {formatTimer(secondsLeft)}
+              </span>
 
-                  return (
+              {state.timerEndsAt ? (
+                <button
+                  onClick={() => controlTimer("PAUSE")}
+                  title="Pauza"
+                  style={{ background: "transparent", color: "var(--text-muted)", padding: "2px" }}
+                >
+                  <Pause size={14} />
+                </button>
+              ) : (
+                <button
+                  onClick={() => controlTimer("START", 300)}
+                  title="Spustit 5 minut"
+                  style={{ background: "transparent", color: "var(--accent-emerald)", padding: "2px" }}
+                >
+                  <Play size={14} />
+                </button>
+              )}
+
+              <button
+                onClick={() => controlTimer("RESET")}
+                title="Reset"
+                style={{ background: "transparent", color: "var(--text-dim)", padding: "2px" }}
+              >
+                <RotateCcw size={14} />
+              </button>
+            </div>
+
+            {/* Action Items Button */}
+            <button
+              onClick={() => setIsActionItemsOpen(true)}
+              style={{
+                padding: "6px 12px",
+                borderRadius: "var(--radius-sm)",
+                background: "var(--bg-card)",
+                border: "1px solid var(--border-color)",
+                color: "var(--text-main)",
+                display: "flex",
+                alignItems: "center",
+                gap: "6px",
+                fontSize: "0.85rem",
+                fontWeight: 600,
+              }}
+            >
+              <Target size={15} color="var(--accent-emerald)" />
+              Akční kroky ({state.actionItems?.filter((a) => a.status !== "DONE").length || 0})
+            </button>
+
+            {/* Export Button */}
+            <button
+              onClick={() => setIsExportOpen(true)}
+              style={{
+                padding: "6px 12px",
+                borderRadius: "var(--radius-sm)",
+                background: "var(--bg-card)",
+                border: "1px solid var(--border-color)",
+                color: "var(--text-main)",
+                display: "flex",
+                alignItems: "center",
+                gap: "6px",
+                fontSize: "0.85rem",
+                fontWeight: 600,
+              }}
+            >
+              <FileDown size={15} /> Export
+            </button>
+
+            {/* Remaining Votes Pill */}
+            <div
+              style={{
+                padding: "5px 10px",
+                borderRadius: "var(--radius-full)",
+                background: "rgba(99, 102, 241, 0.15)",
+                border: "1px solid rgba(99, 102, 241, 0.3)",
+                fontSize: "0.78rem",
+                fontWeight: 700,
+                color: "var(--accent-indigo)",
+              }}
+            >
+              {remainingVotes} hlasů
+            </div>
+
+            {/* Share Link Button */}
+            <button
+              onClick={handleCopyLink}
+              style={{
+                padding: "6px 12px",
+                borderRadius: "var(--radius-sm)",
+                background: copiedLink ? "var(--accent-emerald)" : "var(--accent-indigo)",
+                color: "#ffffff",
+                display: "flex",
+                alignItems: "center",
+                gap: "6px",
+                fontSize: "0.85rem",
+                fontWeight: 600,
+              }}
+            >
+              {copiedLink ? <Check size={15} /> : <Share2 size={15} />}
+              {copiedLink ? "Zkopírováno" : "Sdílet"}
+            </button>
+
+            {/* Online Presence Avatars */}
+            <div style={{ display: "flex", alignItems: "center", marginLeft: "4px" }}>
+              {onlineUsers.map((u, i) => (
+                <div
+                  key={u.id + i}
+                  title={`${u.name} (Online)`}
+                  style={{
+                    width: "28px",
+                    height: "28px",
+                    borderRadius: "50%",
+                    background: u.avatarColor || "var(--accent-indigo)",
+                    color: "#fff",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    fontSize: "0.75rem",
+                    fontWeight: 800,
+                    border: "2px solid var(--bg-secondary)",
+                    marginLeft: i > 0 ? "-8px" : "0",
+                    zIndex: 10 - i,
+                  }}
+                >
+                  {u.name.slice(0, 1).toUpperCase()}
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+
+        {/* Error alert toast */}
+        {lastError && (
+          <div
+            style={{
+              margin: "12px 24px 0",
+              padding: "10px 16px",
+              borderRadius: "var(--radius-sm)",
+              background: "rgba(244, 63, 94, 0.15)",
+              border: "1px solid var(--accent-rose)",
+              color: "var(--accent-rose)",
+              display: "flex",
+              alignItems: "center",
+              gap: "8px",
+              fontSize: "0.85rem",
+              fontWeight: 600,
+            }}
+          >
+            <AlertCircle size={18} /> {lastError}
+          </div>
+        )}
+
+        {/* Board Columns Grid with Drag & Drop */}
+        <div
+          style={{
+            flex: 1,
+            padding: "24px",
+            display: "grid",
+            gridTemplateColumns: `repeat(${state.columns.length}, minmax(300px, 1fr))`,
+            gap: "20px",
+            overflowX: "auto",
+            alignItems: "start",
+          }}
+        >
+          {state.columns.map((column) => {
+            const colCards = state.cards.filter((c) => c.columnId === column.id);
+            const isTypingInCol = typingUsers.some((t) => t.columnId === column.id);
+
+            // Pokud jsme ve fázi diskuze nebo hlasování, seřadíme karty podle obdržených hlasů sestupně!
+            if (state.phase === "VOTING" || state.phase === "DISCUSSION") {
+              colCards.sort((a, b) => getCardVotesCount(b.id) - getCardVotesCount(a.id));
+            }
+
+            return (
+              <DroppableColumn key={column.id} column={column} cards={colCards}>
+                {/* Column Header */}
+                <div
+                  style={{
+                    padding: "14px 18px",
+                    display: "flex",
+                    justifyContent: "space-between",
+                    alignItems: "center",
+                    borderBottom: "1px solid var(--border-color)",
+                  }}
+                >
+                  <h3 style={{ fontSize: "1rem", fontWeight: 700, margin: 0 }}>{column.title}</h3>
+                  <span
+                    style={{
+                      fontSize: "0.75rem",
+                      padding: "2px 8px",
+                      borderRadius: "var(--radius-full)",
+                      background: "var(--bg-secondary)",
+                      color: "var(--text-muted)",
+                      fontWeight: 700,
+                    }}
+                  >
+                    {colCards.length}
+                  </span>
+                </div>
+
+                {/* Cards List */}
+                <div
+                  style={{
+                    flex: 1,
+                    padding: "14px",
+                    display: "flex",
+                    flexDirection: "column",
+                    gap: "12px",
+                    overflowY: "auto",
+                    minHeight: "160px",
+                  }}
+                >
+                  {colCards.map((card) => {
+                    const votesCount = getCardVotesCount(card.id);
+                    const isVoted = hasUserVotedOnCard(card.id);
+
+                    return (
+                      <DraggableCard
+                        key={card.id}
+                        card={card}
+                        votesCount={votesCount}
+                        isVoted={isVoted}
+                        onVote={() => (isVoted ? removeVote(card.id) : castVote(card.id))}
+                        onDelete={() => deleteCard(card.id)}
+                      />
+                    );
+                  })}
+
+                  {colCards.length === 0 && activeNewCardColumn !== column.id && (
                     <div
-                      key={card.id}
                       style={{
-                        padding: "14px",
+                        textAlign: "center",
+                        padding: "24px 12px",
+                        color: "var(--text-dim)",
+                        fontSize: "0.85rem",
+                        border: "2px dashed rgba(255, 255, 255, 0.05)",
                         borderRadius: "var(--radius-sm)",
-                        background: "var(--bg-secondary)",
-                        border: "1px solid var(--border-color)",
-                        display: "flex",
-                        flexDirection: "column",
-                        gap: "10px",
-                        boxShadow: "var(--shadow-sm)",
-                        position: "relative",
                       }}
                     >
-                      {/* Card Content with Safe Blur Display */}
-                      <p
-                        style={{
-                          fontSize: "0.92rem",
-                          lineHeight: "1.45",
-                          margin: 0,
-                          wordBreak: "break-word",
-                          filter: isMasked ? "blur(3px)" : "none",
-                          userSelect: isMasked ? "none" : "text",
-                          opacity: isMasked ? 0.6 : 1,
-                        }}
-                      >
-                        {card.content}
-                      </p>
+                      Přetáhněte sem kartu nebo přidejte novou
+                    </div>
+                  )}
+                </div>
 
-                      {/* Card Footer: Author + Vote + Delete */}
-                      <div
-                        style={{
-                          display: "flex",
-                          justifyContent: "space-between",
-                          alignItems: "center",
-                          paddingTop: "6px",
-                          borderTop: "1px solid rgba(255, 255, 255, 0.04)",
-                        }}
-                      >
-                        <span style={{ fontSize: "0.75rem", color: "var(--text-dim)" }}>
-                          {card.authorName}
-                        </span>
+                {/* Typing indicator */}
+                {isTypingInCol && (
+                  <div
+                    style={{
+                      padding: "6px 14px",
+                      fontSize: "0.75rem",
+                      color: "var(--accent-indigo)",
+                      fontStyle: "italic",
+                    }}
+                  >
+                    Někdo právě píše myšlenku...
+                  </div>
+                )}
 
-                        <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-                          {/* Vote Button */}
+                {/* Column Footer: Add Card */}
+                <div style={{ padding: "12px", borderTop: "1px solid var(--border-color)" }}>
+                  {activeNewCardColumn === column.id ? (
+                    <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
+                      <textarea
+                        autoFocus
+                        rows={3}
+                        placeholder="Napište myšlenku... (Ctrl+Enter pro odeslání)"
+                        value={newCardText}
+                        onChange={(e) => {
+                          setNewCardText(e.target.value);
+                          setTyping(column.id, true);
+                        }}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) {
+                            handleAddCardSubmit(column.id);
+                          }
+                        }}
+                        style={{
+                          width: "100%",
+                          padding: "10px",
+                          borderRadius: "var(--radius-sm)",
+                          background: "var(--bg-secondary)",
+                          border: "1px solid var(--border-color)",
+                          color: "var(--text-main)",
+                          fontSize: "0.9rem",
+                          resize: "vertical",
+                        }}
+                      />
+
+                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                        <label style={{ display: "flex", alignItems: "center", gap: "6px", fontSize: "0.75rem", color: "var(--text-muted)", cursor: "pointer" }}>
+                          <input
+                            type="checkbox"
+                            checked={isAnonymous}
+                            onChange={(e) => setIsAnonymous(e.target.checked)}
+                          />
+                          Anonymně
+                        </label>
+
+                        <div style={{ display: "flex", gap: "6px" }}>
                           <button
-                            onClick={() => (isVoted ? removeVote(card.id) : castVote(card.id))}
-                            title={isVoted ? "Odebrat hlas" : "Hlasovat"}
+                            type="button"
+                            onClick={() => {
+                              setActiveNewCardColumn(null);
+                              setNewCardText("");
+                              setTyping(column.id, false);
+                            }}
                             style={{
-                              padding: "4px 8px",
+                              padding: "6px 10px",
                               borderRadius: "var(--radius-sm)",
-                              background: isVoted ? "var(--accent-indigo)" : "rgba(255, 255, 255, 0.05)",
-                              color: isVoted ? "#ffffff" : "var(--text-main)",
-                              display: "flex",
-                              alignItems: "center",
-                              gap: "5px",
-                              fontSize: "0.8rem",
-                              fontWeight: 700,
-                              border: "1px solid var(--border-color)",
-                            }}
-                          >
-                            <ThumbsUp size={13} />
-                            <span>{votesCount}</span>
-                          </button>
-
-                          {/* Delete Button (Author or Facilitator) */}
-                          <button
-                            onClick={() => deleteCard(card.id)}
-                            title="Smazat kartu"
-                            style={{
                               background: "transparent",
-                              color: "var(--text-dim)",
-                              padding: "4px",
+                              color: "var(--text-muted)",
+                              fontSize: "0.8rem",
+                              fontWeight: 600,
                             }}
                           >
-                            <Trash2 size={14} />
+                            Zrušit
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleAddCardSubmit(column.id)}
+                            style={{
+                              padding: "6px 12px",
+                              borderRadius: "var(--radius-sm)",
+                              background: "var(--accent-indigo)",
+                              color: "#ffffff",
+                              fontSize: "0.8rem",
+                              fontWeight: 600,
+                            }}
+                          >
+                            Uložit
                           </button>
                         </div>
                       </div>
                     </div>
-                  );
-                })}
-
-                {colCards.length === 0 && activeNewCardColumn !== column.id && (
-                  <div
-                    style={{
-                      textAlign: "center",
-                      padding: "24px 12px",
-                      color: "var(--text-dim)",
-                      fontSize: "0.85rem",
-                    }}
-                  >
-                    Žádné karty ve sloupci
-                  </div>
-                )}
-              </div>
-
-              {/* Typing indicator */}
-              {isTypingInCol && (
-                <div
-                  style={{
-                    padding: "6px 14px",
-                    fontSize: "0.75rem",
-                    color: "var(--accent-indigo)",
-                    fontStyle: "italic",
-                  }}
-                >
-                  Někdo právě píše myšlenku...
-                </div>
-              )}
-
-              {/* Column Footer: Add Card Trigger / Inline Form */}
-              <div style={{ padding: "12px", borderTop: "1px solid var(--border-color)" }}>
-                {activeNewCardColumn === column.id ? (
-                  <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
-                    <textarea
-                      autoFocus
-                      rows={3}
-                      placeholder="Napište myšlenku..."
-                      value={newCardText}
-                      onChange={(e) => {
-                        setNewCardText(e.target.value);
-                        setTyping(column.id, true);
-                      }}
-                      onKeyDown={(e) => {
-                        if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) {
-                          handleAddCardSubmit(column.id);
-                        }
-                      }}
+                  ) : (
+                    <button
+                      onClick={() => setActiveNewCardColumn(column.id)}
                       style={{
                         width: "100%",
-                        padding: "10px",
+                        padding: "8px",
                         borderRadius: "var(--radius-sm)",
-                        background: "var(--bg-secondary)",
-                        border: "1px solid var(--border-color)",
+                        background: "rgba(255, 255, 255, 0.04)",
                         color: "var(--text-main)",
-                        fontSize: "0.9rem",
-                        resize: "vertical",
+                        border: "1px solid var(--border-color)",
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        gap: "6px",
+                        fontSize: "0.85rem",
+                        fontWeight: 600,
                       }}
-                    />
-
-                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                      <label style={{ display: "flex", alignItems: "center", gap: "6px", fontSize: "0.75rem", color: "var(--text-muted)", cursor: "pointer" }}>
-                        <input
-                          type="checkbox"
-                          checked={isAnonymous}
-                          onChange={(e) => setIsAnonymous(e.target.checked)}
-                        />
-                        Anonymně
-                      </label>
-
-                      <div style={{ display: "flex", gap: "6px" }}>
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setActiveNewCardColumn(null);
-                            setNewCardText("");
-                            setTyping(column.id, false);
-                          }}
-                          style={{
-                            padding: "6px 10px",
-                            borderRadius: "var(--radius-sm)",
-                            background: "transparent",
-                            color: "var(--text-muted)",
-                            fontSize: "0.8rem",
-                            fontWeight: 600,
-                          }}
-                        >
-                          Zrušit
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => handleAddCardSubmit(column.id)}
-                          style={{
-                            padding: "6px 12px",
-                            borderRadius: "var(--radius-sm)",
-                            background: "var(--accent-indigo)",
-                            color: "#ffffff",
-                            fontSize: "0.8rem",
-                            fontWeight: 600,
-                          }}
-                        >
-                          Uložit
-                        </button>
-                      </div>
-                    </div>
-                  </div>
-                ) : (
-                  <button
-                    onClick={() => setActiveNewCardColumn(column.id)}
-                    style={{
-                      width: "100%",
-                      padding: "8px",
-                      borderRadius: "var(--radius-sm)",
-                      background: "rgba(255, 255, 255, 0.04)",
-                      color: "var(--text-main)",
-                      border: "1px solid var(--border-color)",
-                      display: "flex",
-                      alignItems: "center",
-                      justifyContent: "center",
-                      gap: "6px",
-                      fontSize: "0.85rem",
-                      fontWeight: 600,
-                    }}
-                  >
-                    <Plus size={16} /> Přidat kartu
-                  </button>
-                )}
-              </div>
-            </div>
-          );
-        })}
+                    >
+                      <Plus size={16} /> Přidat kartu
+                    </button>
+                  )}
+                </div>
+              </DroppableColumn>
+            );
+          })}
+        </div>
       </div>
-    </div>
+
+      {/* Modály: Export a Akční kroky */}
+      {isExportOpen && (
+        <ExportModal state={state} onClose={() => setIsExportOpen(false)} />
+      )}
+
+      <ActionItemsDrawer
+        actionItems={state.actionItems || []}
+        isOpen={isActionItemsOpen}
+        onClose={() => setIsActionItemsOpen(false)}
+        onAdd={addActionItem}
+        onToggleStatus={(id, status) => updateActionItem(id, status)}
+      />
+    </DndContext>
   );
 };

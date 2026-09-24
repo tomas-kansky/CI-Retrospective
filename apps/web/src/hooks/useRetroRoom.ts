@@ -195,6 +195,47 @@ export function useRetroRoom({ roomId, user }: UseRetroRoomOptions) {
     [sendMessage]
   );
 
+  const moveCard = useCallback(
+    (cardId: string, targetColumnId: string, newSortOrder: number) => {
+      // Optimistická lokální aktualizace pro okamžitou plynulost v UI
+      setState((prev) => {
+        if (!prev) return null;
+        return {
+          ...prev,
+          cards: prev.cards.map((c) =>
+            c.id === cardId ? { ...c, columnId: targetColumnId, sortOrder: newSortOrder } : c
+          ),
+        };
+      });
+
+      sendMessage({
+        type: "MOVE_CARD",
+        payload: { cardId, targetColumnId, newSortOrder },
+      });
+    },
+    [sendMessage]
+  );
+
+  const addActionItem = useCallback(
+    (text: string, assignee?: string, dueDate?: string) => {
+      sendMessage({
+        type: "ADD_ACTION_ITEM",
+        payload: { text, assignee, dueDate },
+      });
+    },
+    [sendMessage]
+  );
+
+  const updateActionItem = useCallback(
+    (id: string, status: "OPEN" | "IN_PROGRESS" | "DONE") => {
+      sendMessage({
+        type: "UPDATE_ACTION_ITEM",
+        payload: { id, status },
+      });
+    },
+    [sendMessage]
+  );
+
   // Spočítat zbývající hlasy pro aktuálního uživatele
   const userVotesCount = state?.votes.filter((v) => v.userSessionId === user.id).length || 0;
   const remainingVotes = Math.max(0, (state?.maxVotesPerUser || 5) - userVotesCount);
@@ -210,11 +251,14 @@ export function useRetroRoom({ roomId, user }: UseRetroRoomOptions) {
     addCard,
     updateCard,
     deleteCard,
+    moveCard,
     castVote,
     removeVote,
     setPhase,
     toggleBlur,
     controlTimer,
     setTyping,
+    addActionItem,
+    updateActionItem,
   };
 }
