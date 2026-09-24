@@ -146,15 +146,21 @@ app.post("/api/retrospectives", async (c) => {
 });
 
 // Směrování požadavků a WebSocket spojení do příslušného Durable Objectu pro danou místnost
-app.all("/api/room/:roomId/*", async (c) => {
+app.all("/api/room/:roomId", async (c) => {
   const roomId = c.req.param("roomId");
-  if (!roomId) {
-    return c.text("Room ID is required", 400);
-  }
+  if (!roomId) return c.text("Room ID is required", 400);
 
   const id = c.env.RETRO_ROOM.idFromName(roomId);
   const room = c.env.RETRO_ROOM.get(id);
+  return room.fetch(c.req.raw);
+});
 
+app.all("/api/room/:roomId/*", async (c) => {
+  const roomId = c.req.param("roomId");
+  if (!roomId) return c.text("Room ID is required", 400);
+
+  const id = c.env.RETRO_ROOM.idFromName(roomId);
+  const room = c.env.RETRO_ROOM.get(id);
   return room.fetch(c.req.raw);
 });
 
