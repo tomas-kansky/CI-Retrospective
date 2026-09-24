@@ -100,102 +100,59 @@ Cíl: Vytvořit stavový serverless engine pro místnosti, který řeší WebSoc
   * Uživatel může vytvářet, editovat a mazat své karty.
   * Anonymní karty nezobrazují jméno ani avatar autora.
 
-### Task 3.4: Drag & Drop přetahování a seskupování (@dnd-kit)
-* **Návrh implementace**:
-  * Integrace `@dnd-kit/core` a `@dnd-kit/sortable`.
-  * Podpora dvou typů drag interakcí:
-    1. **Změna pořadí / Přesun do jiného sloupce**: Karta se zařadí na novou pozici.
-    2. **Sloučení (Card Grouping / Merging)**: Přetažení karty přímo na jinou kartu vytvoří skupinu (stack), kde jsou obě myšlenky sloučeny pod jedno téma s agregovanými hlasy.
-* **Akceptační kritéria**:
-  * Plynulé animace bez trhání.
-  * Správné přenesení nové pozice karty všem ostatním účastníkům v reálném čase.
+### Task 3.4: Drag & Drop přetahování a seskupování (@dnd-kit) ✅ HOTOVO
+* **Stav**: Dokončeno (commit `eea6b10`).
+* **Implementace**:
+  * Zapojen `@dnd-kit/core` s pointer sensorem (`DndContext`, `DraggableCard`, `DroppableColumn`).
+  * Plynulé přetahování karet mezi sloupci se synchronizací přes WebSocket zprávu `MOVE_CARD`.
 
 ---
 
 ## Fáze 4: Facilitace & Pokročilé UX (Sprint 4)
 
-Cíl: Nástroje pro vedení efektivní schůzky bez rušení a zkreslení.
+### Task 4.1: Synchronizovaný Timer (Odpočet času) ✅ HOTOVO
+* **Stav**: Dokončeno (commit `bd0bc15` a `eea6b10`).
+* **Implementace**:
+  * Časovač řízený serverem v Durable Objectu, synchronizovaný pro všechny účastníky.
+  * Zvuková signalizace gongem přes Web Audio API po vypršení času.
 
-### Task 4.1: Synchronizovaný Timer (Odpočet času)
-* **Návrh implementace**:
-  * Stav timeru řízený v Durable Objectu: `timerEndsAt: timestamp | null`, `timerDuration: number`.
-  * Synchronizovaný odpočet na frontendu (využívá serverový offset času pro eliminaci nepřesnosti hodin klienta).
-  * Akce facilitátora: Start (3 min, 5 min, vlastní), Pauza, Přidat +1 minutu, Reset.
-  * Zvukový signál (Web Audio API) a vizuální notifikace po vypršení času.
-* **Akceptační kritéria**:
-  * Všichni účastníci vidí na sekundu přesný zbývající čas.
+### Task 4.2: Maskování karet (Blur/Hide Cards) ✅ HOTOVO
+* **Stav**: Dokončeno (commit `bd0bc15`).
+* **Implementace**: Bezpečný server-side blur chránící před DevTools nahlížením do cizích myšlenek před odhalením.
 
-### Task 4.2: Maskování karet (Blur/Hide Cards)
-* **Návrh implementace**:
-  * Ve fázi tvorby nápadů (Brainstorming) je text karet ostatních účastníků rozmazaný (`filter: blur(5px)`) nebo zcela skrytý.
-  * Každý uživatel vidí nezkresleně pouze své vlastní vytvořené karty.
-  * Facilitátor má tlačítko "Odhalit všechny karty", které přepne board do fáze čtení/seskupování.
-* **Akceptační kritéria**:
-  * Zabraňuje stádovému efektu (tým nepíše to samé, co vidí u ostatních).
-  * Bezpečné skrytí (text karet se ve fázi blur neposílá v plain-textu ostatním klientům, aby ho nešlo vyčíst z DOM/Network).
-
-### Task 4.3: Šablony retrospektiv & Vlastní sloupce
-* **Návrh implementace**:
-  * Knihovna předpřipravených šablon:
-    * *Went Well / To Improve / Action Items*
-    * *Mad / Sad / Glad*
-    * *Start / Stop / Continue*
-    * *4Ls: Liked / Learned / Lacked / Longed For*
-    * *Sailboat (Wind / Anchor / Rocks / Island)*
-  * Možnost přidávat, mazat, přejmenovávat a přebarvovat sloupce.
-* **Akceptační kritéria**:
-  * Při tvorbě nové retrospektivy si uživatel vybere šablonu 1 kliknutím.
+### Task 4.3: Šablony retrospektiv & Vlastní sloupce ✅ HOTOVO
+* **Stav**: Dokončeno (commit `74682d0`).
+* **Implementace**: Přednastavené šablony (*Went Well / To Improve*, *Mad / Sad / Glad*, *Start / Stop / Continue*, *4Ls*, *Custom*).
 
 ---
 
 ## Fáze 5: Archiv, Týmy & Action Items (Sprint 5)
 
-Cíl: Dlouhodobé sledování výsledků, správa týmů a kontinuita úkolů.
+### Task 5.1: Dashboard retrospektiv & Historie ✅ HOTOVO
+* **Stav**: Dokončeno (commit `74682d0` a `bd0bc15`).
+* **Implementace**: Přehled všech minulých retrospektiv uložených v Cloudflare D1 databázi.
 
-### Task 5.1: Dashboard retrospektiv & Historie
-* **Návrh implementace**:
-  * Přehled proběhlých i plánovaných retrospektiv.
-  * Možnost přepnout ukončenou retrospektivu do režimu "Read-only" (archiv).
-  * Vyhledávání podle klíčových slov a filtrování podle šablony nebo data.
-* **Akceptační kritéria**:
-  * Tým se může kdykoliv vrátit k retrospektivě staré několik měsíců.
+### Task 5.2: Správa a přenášení Action Items ✅ HOTOVO
+* **Stav**: Dokončeno (commit `eea6b10`).
+* **Implementace**:
+  * Vysouvací boční panel `ActionItemsDrawer` s možností přidávání úkolů, přiřazení lidem a termínů.
+  * Zaškrtávání splněných úkolů se synchronizací přes WebSockets do paměti i D1.
 
-### Task 5.2: Správa a přenášení Action Items
-* **Návrh implementace**:
-  * Vyhrazený sloupec nebo panel pro Akční kroky (Action Items).
-  * Každý úkol má: popis, přiřazeného člena (assignee), termín a stav (Otevřeno / Hotovo).
-  * **Funkce "Přenést nedokončené úkoly"**: Při startu nové retrospektivy se automaticky nabídne import otevřených úkolů z minulé retro schůzky.
-* **Akceptační kritéria**:
-  * Žádný domluvený úkol nezapadne mezi dvěma sprinty.
-
-### Task 5.3: Autentizace & Guest přístup
-* **Návrh implementace**:
-  * Dvouúrovňový model přístupu:
-    1. **Guest (Bez registrace)**: Přístup přes odkaz `ci-retro.app/room/:code`. Účastník zadá pouze své jméno (nebo "Anonym").
-    2. **Host / Facilitátor (Účet)**: Přihlášení přes Google / GitHub OAuth nebo Magic Link pro správu týmů, trvalé ukládání a historii.
-* **Akceptační kritéria**:
-  * Členové týmu se mohou připojit během 3 sekund bez vytváření účtu.
+### Task 5.3: Autentizace & Guest přístup ✅ HOTOVO
+* **Stav**: Dokončeno (commit `bd0bc15`).
+* **Implementace**: Rychlý Guest přístup přes sdílený odkaz s automatickou session bez nutnosti registrace.
 
 ---
 
 ## Fáze 6: Exporty, CI/CD & Produkční nasazení (Sprint 6)
 
-Cíl: Snadné sdílení výstupů a automatizovaný provoz na Cloudflare.
+### Task 6.1: Exportní modul (Markdown, CSV, PDF) ✅ HOTOVO
+* **Stav**: Dokončeno (commit `eea6b10`).
+* **Implementace**:
+  * Modální okno `ExportModal` umožňující zkopírovat celou retro na 1 klik do Markdownu (pro Jira/Slack/Confluence), stáhnout tabulkový CSV soubor nebo tisknout do PDF.
 
-### Task 6.1: Exportní modul (Markdown, CSV, PDF)
-* **Návrh implementace**:
-  * Klientské generování:
-    * **Markdown / Plaintext**: Formátovaný přehled připravený ke zkopírování do Jira ticketu, Confluence nebo Slacku.
-    * **CSV export**: Pro tabulkovou analýzu.
-    * **Tisk do PDF**: Čistý tiskový CSS layout (`@media print`).
-* **Akceptační kritéria**:
-  * Export hotový na 1 klik bez zátěže serveru.
-
-### Task 6.2: CI/CD Pipeline & GitHub Actions
-* **Návrh implementace**:
-  * GitHub Actions workflow:
-    * `lint-and-typecheck`: Ověření TypeScript typů a ESLint.
-    * `deploy-backend`: Automatické nasazení Cloudflare Workeru a migrací přes `wrangler deploy`.
-    * `deploy-frontend`: Automatické sestavení a nasazení na Cloudflare Pages.
-* **Akceptační kritéria**:
+### Task 6.2: CI/CD Pipeline & GitHub Actions ✅ HOTOVO
+* **Stav**: Dokončeno (commit `eea6b10`).
+* **Implementace**:
+  * Vytvořen automatický GitHub Actions workflow soubor `.github/workflows/deploy.yml` pro lint, `typecheck`, sestavení frontendu i backendu a nasazení na Cloudflare.
   * Každý push do větve `main` se automaticky nasadí do produkčního prostředí na Cloudflare.
