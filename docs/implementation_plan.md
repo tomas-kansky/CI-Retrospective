@@ -156,3 +156,45 @@ Cíl: Vytvořit stavový serverless engine pro místnosti, který řeší WebSoc
 * **Implementace**:
   * Vytvořen automatický GitHub Actions workflow soubor `.github/workflows/deploy.yml` pro lint, `typecheck`, sestavení frontendu i backendu a nasazení na Cloudflare.
   * Každý push do větve `main` se automaticky nasadí do produkčního prostředí na Cloudflare.
+
+---
+
+## Fáze 7: Pokročilé integrace & Týmový Backlog (Sprint 7) 📋 PLÁNOVÁNO
+
+Cíl: Automatizace firemních workflow, integrace do stávajících komunikačních nástrojů a prémiové týmové funkce.
+
+### Task 7.1: Slack & Jira Webhook Integrace
+* **Návrh implementace**:
+  * Přidání pole `webhook_url` do nastavení retrospektivy nebo týmu v Cloudflare D1.
+  * Po kliknutí na "Uzavřít retrospektivu" Durable Object odešle formátovaný webhook (Slack Block Kit JSON / Jira REST API):
+    * Přehled top hlasovaných témat ze všech sloupců.
+    * Kompletní seznam dohodnutých akčních kroků s přiřazenými členy.
+  * Zpracování přímo na Cloudflare Workeru bez nutnosti externího serveru.
+* **Akceptační kritéria**:
+  * Po uzavření schůzky se do Slack kanálu týmu automaticky odešle vizuální report.
+
+### Task 7.2: SSO & Firemní Autentizace (Google Workspace & GitHub OAuth)
+* **Návrh implementace**:
+  * Rozšíření stávajícího Guest režimu o plné OAuth 2.0 přihlášení pro facilitátory.
+  * Ukládání uživatelských profilů a tokenů do Cloudflare D1 tabulky `users` a `teams`.
+  * Možnost omezit přístup k retrospektivě pouze na uživatele z firemní domény (např. `@firma.cz`).
+* **Akceptační kritéria**:
+  * Facilitátor se přihlásí jedním klikem přes Google nebo GitHub a vidí všechny své týmové tabule pohromadě.
+
+### Task 7.3: Oslava dokončení & Vizuální konfety (Canvas Confetti)
+* **Návrh implementace**:
+  * Implementace odlehčeného efektu konfet přes HTML5 Canvas API (bez těžkých externích závislostí).
+  * Server odešle zprávu `CELEBRATE` všem klientům v místnosti při přechodu do fáze `ACTION_ITEMS` nebo `ARCHIVED`.
+  * Zvukový doprovod (fanfára) přes Web Audio API.
+* **Akceptační kritéria**:
+  * Všichni připojení účastníci ve stejný okamžik uvidí barevné konfety při úspěšném zakončení retro.
+
+### Task 7.4: Vizuální seskupování karet (Card Stacking / Grouping UI)
+* **Návrh implementace**:
+  * Propojení existujícího datového pole `parentCardId` v D1 i Durable Objectu s novou UI interakcí.
+  * Detekce přetažení karty na jinou kartu (drop target = karta).
+  * Karty se vizuálně seskupí do "hromádky" (accordion / stack) s jedním hlavním tématem.
+  * Možnost rozbalit skupinu a kliknout na "Oddělit kartu" (`UNGROUP_CARD`).
+* **Akceptační kritéria**:
+  * Tým může plynule slučovat duplicitní myšlenky pouhým přetažením přes sebe.
+
