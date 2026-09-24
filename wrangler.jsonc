@@ -27,7 +27,7 @@
     {
       "binding": "DB",
       "database_name": "ci-retro-db",
-      "database_id": "local-d1-placeholder",
+      "database_id": "f429baa3-2d86-4993-93ef-da1567424260",
       "migrations_dir": "apps/server/migrations"
     }
   ]
