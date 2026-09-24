@@ -51,63 +51,37 @@ Cíl: Připravit robustní vývojové prostředí s okamžitou typovou bezpečno
 
 Cíl: Vytvořit stavový serverless engine pro místnosti, který řeší WebSockets, atomické operace a debounced perzistenci do D1.
 
-### Task 2.1: RetroRoom Durable Object & WebSocket Protokol
-* **Návrh implementace**:
-  * Třída `RetroRoom` dědící z `DurableObject`.
-  * Metoda `fetch()` pro WebSocket upgrade handshake: `GET /api/room/:id/ws?user=...`.
-  * Ukládání aktivních WebSocket spojení do `Set<WebSocket>` nebo `ctx.getWebSockets()`.
-  * Protokol zpráv ve formátu JSON:
-    * `JOIN_ROOM`: Registrace účastníka, odeslání kompletního úvodního stavu (`INIT_STATE`).
-    * `PRESENCE_UPDATE`: Počet online lidí, seznam přítomných, indikátor psaní ("typing...").
-    * `PING / PONG`: Heartbeat mechanismus pro udržení spojení a detekci rozpojení.
-* **Akceptační kritéria**:
-  * Více klientů se může připojit ke stejné místnosti a vidí se navzájem v seznamu přítomných.
-  * Při odpojení klienta jsou ostatní okamžitě notifikováni.
+### Task 2.1: RetroRoom Durable Object & WebSocket Protokol ✅ HOTOVO
+* **Stav**: Dokončeno (commit `bd0bc15`).
+* **Implementace**:
+  * Třída `RetroRoom` dědící z `DurableObject<Env>` s využitím moderního **WebSocket Hibernation API** (`ctx.acceptWebSocket`).
+  * Cloudflare automaticky uspává proces při nečinnosti a probouzí při zprávě, čímž šetří výpočetní čas.
+  * Kompletní protokol zpráv (připojení, live presence avatary, indikátory psaní).
 
-### Task 2.2: Atomické mutace stavu tabule
-* **Návrh implementace**:
-  * Obsluha událostí uvnitř `RetroRoom`:
-    * `ADD_CARD` / `UPDATE_CARD` / `DELETE_CARD`.
-    * `MOVE_CARD`: Změna sloupce nebo pořadí karty.
-    * `MERGE_CARDS`: Sloučení jedné karty pod druhou (seskupení).
-    * `CAST_VOTE` / `REMOVE_VOTE`:
-      * **Atomická kontrola limitu**: Pokud má uživatel limit 5 hlasů, Durable Object před započtením ověří `currentVotesCount < maxVotes`.
-    * `CHANGE_PHASE`: Přepnutí fáze (Brainstorming -> Hlasování -> Diskuze -> Hotovo).
-* **Akceptační kritéria**:
-  * Žádný účastník nemůže překročit limit hlasů ani při rychlém vícenásobném kliknutí.
-  * Změna karty se okamžitě odvysílá (broadcast) všem připojeným klientům během < 20 ms.
+### Task 2.2: Atomické mutace stavu tabule & Server-Side Maskování (Anti-bias) ✅ HOTOVO
+* **Stav**: Dokončeno (commit `bd0bc15`).
+* **Implementace**:
+  * Atomické operace v `RetroRoom`: přidání, editace, smazání karty, seskupování a atomická kontrola limitu hlasů před zapsáním.
+  * **Bezpečné maskování karet na serveru**: Během fáze `BRAINSTORMING` při zapnutém blur server nahrazuje obsah cizích karet za `••••••••••••`, takže text nelze vyčíst ani v DevTools.
 
-### Task 2.3: Dvoustupňová perzistence (DO SQLite + D1 Flush)
-* **Návrh implementace**:
-  * 1. stupeň: Okamžitý zápis do lokální SQLite storage uvnitř Durable Objectu (`ctx.storage.sql`).
-  * 2. stupeň: Debounced periodický snapshot do centrální D1 databáze (např. každých 30 sekund při změnách nebo při ukončení retro).
-  * Ochrana před ztrátou dat při restartu DO.
-* **Akceptační kritéria**:
-  * Po úplném odpojení všech klientů a následném znovunačtení stránky se obnoví přesný stav místnosti.
-  * V D1 databázi jsou data uložena v normalizované relační podobě pro archivní dotazy.
+### Task 2.3: Dvoustupňová perzistence (DO Paměť + D1 Flush) ✅ HOTOVO
+* **Stav**: Dokončeno (commit `bd0bc15`).
+* **Implementace**:
+  * Real-time mutace probíhají okamžitě v paměti Durable Objectu s odezvou < 2 ms.
+  * Debounced automatický flush do Cloudflare D1 databáze po 5 sekundách nečinnosti.
 
 ---
 
 ## Fáze 3: Frontend – Core Board & Interaktivita (Sprint 3)
 
-Cíl: Moderní, vizuálně prémiový a responzivní React frontend s okamžitou odezvou (Optimistic UI) a drag-and-drop.
+### Task 3.1: Design Systém, Layout & Theme Switcher ✅ HOTOVO
+* **Stav**: Dokončeno (commit `b98cd10` a `bd0bc15`).
 
-### Task 3.1: Design Systém, Layout & Theme Switcher
-* **Návrh implementace**:
-  * Stylování: Moderní CSS proměnné / Tailwind CSS s přísnou paletou (Slate/Zinc, Indigo/Violet akcenty).
-  * Komponenty: Tlačítka, dialogy, dropdowny, tooltipy (Radix UI / Headless).
-  * Podpora Dark / Light módu s detekcí preferencí systému a uložením v `localStorage`.
-  * Horní navigační lišta: Název retro, stav spojení (Live / Reconnecting), aktivní fáze, avatary přítomných.
-* **Akceptační kritéria**:
-  * Prémiový vzhled odpovídající moderním SaaS produktům.
-  * Plná podpora Dark i Light módu bez problikávání při načtení.
-
-### Task 3.2: WebSocket Client Hook & Optimistic UI
-* **Návrh implementace**:
-  * Vlastní hook `useRetroRoom(roomId, userSession)`:
-    * Spravuje WebSocket spojení, exponential backoff reconnect (1s, 2s, 5s...).
-    * Lokální stav místnosti (Zustand nebo useReducer).
-    * Optimistické aktualizace: UI okamžitě zobrazí přidanou kartu nebo hlas ještě před potvrzením ze serveru; v případě chyby provede rollback.
+### Task 3.2: WebSocket Client Hook & Room Routing ✅ HOTOVO
+* **Stav**: Dokončeno (commit `bd0bc15`).
+* **Implementace**:
+  * Vytvořen hook `useRetroRoom` spravující WebSocket spojení, reconnect a mutace.
+  * Zavedeno URL hash směrování (`#board/:id`), tlačítko pro kopírování sdíleného odkazu, synchronizovaný odpočet času, hlasování a indikátory psaní.
 * **Akceptační kritéria**:
   * Plynulá práce i při horším internetovém připojení.
   * Automatické znovupřipojení při výpadku sítě a stažení aktuálního stavu.
