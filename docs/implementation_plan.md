@@ -31,29 +31,19 @@ Cíl: Připravit robustní vývojové prostředí s okamžitou typovou bezpečno
   * Zaveden sdílený `tsconfig.base.json` s path aliasingem pro okamžitou typovou kontrolu.
   * Ověřena instalace balíčků, `typecheck` napříč všemi workspaces i Vite build.
 
-### Task 1.2: Konfigurace Cloudflare Wrangler & D1 Databáze
-* **Návrh implementace**:
-  * Vytvoření `apps/server/wrangler.jsonc` s konfigurací:
-    * D1 databáze binding: `DB`.
-    * Durable Object binding: `RETRO_ROOM`.
-    * Migrace složka: `migrations/`.
-  * Příprava lokálního testovacího prostředí s Miniflare (plně offline lokální Cloudflare stack).
-* **Akceptační kritéria**:
-  * `wrangler d1 execute` funguje lokálně i vůči vzdálenému Cloudflare prostředí.
-  * Lokální simulace Cloudflare prostředí bez nutnosti připojení k internetu.
+### Task 1.2: Konfigurace Cloudflare Wrangler & D1 Databáze ✅ HOTOVO
+* **Stav**: Dokončeno (commit `74682d0`).
+* **Implementace**:
+  * Konfigurace `apps/server/wrangler.jsonc` s bindingy pro Cloudflare D1 databázi (`DB`) a Durable Object (`RETRO_ROOM`).
+  * Nastaven lokální D1 běh s Miniflare offline emulací bez nutnosti cloudového připojení.
 
-### Task 1.3: Drizzle ORM Schéma & Migrace
-* **Návrh implementace**:
-  * Definice tabulek v `apps/server/src/db/schema.ts`:
-    * `retrospectives` (id, title, status, template_type, max_votes, cards_blurred, created_at, closed_at).
-    * `columns` (id, retrospective_id, title, color, sort_order).
-    * `cards` (id, column_id, parent_card_id, author_name, content, sort_order, created_at).
-    * `votes` (id, card_id, user_session_id, created_at).
-    * `action_items` (id, retrospective_id, text, assignee, status, due_date).
-  * Konfigurace `drizzle-kit` pro generování SQL migrací.
-* **Akceptační kritéria**:
-  * Příkaz `npm run db:generate` vytvoří čisté SQL migrace.
-  * Příkaz `npm run db:migrate` aplikuje migrace do lokální D1 databáze.
+### Task 1.3: Drizzle ORM Schéma & Migrace ✅ HOTOVO
+* **Stav**: Dokončeno (commit `74682d0`).
+* **Implementace**:
+  * Vytvořeno Drizzle ORM schéma v `apps/server/src/db/schema.ts` s tabulkami `retrospectives`, `columns`, `cards`, `votes` a `action_items` včetně cizích klíčů a relací.
+  * Zaveden `drizzle.config.ts` a úspěšně vygenerována SQL migrace `migrations/0000_good_master_mold.sql`.
+  * Migrace byla úspěšně aplikována do lokální D1 databáze (`npm run db:migrate`).
+  * Vytvořeny REST API endpointy v Hono routeru pro tvorbu retrospektiv se šablonami a jejich načítání, napojené na frontendové UI.
 
 ---
 
