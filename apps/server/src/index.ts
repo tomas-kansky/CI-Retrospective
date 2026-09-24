@@ -2,12 +2,23 @@ import { Hono } from "hono";
 import { cors } from "hono/cors";
 import { eq, desc } from "drizzle-orm";
 import { RetroRoom, type Env } from "./room";
-import { createDb, retrospectives, columns, cards, votes, actionItems } from "./db";
+import { createDb, ensureTablesExist, retrospectives, columns, cards, votes, actionItems } from "./db";
 import { TemplateTypeSchema } from "@ci-retro/types";
 
 export { RetroRoom };
 
 const app = new Hono<{ Bindings: Env }>();
+
+app.onError((err, c) => {
+  console.error("Hono server error:", err);
+  return c.json(
+    {
+      error: err.message || "Internal Server Error",
+      stack: err.stack,
+    },
+    500
+  );
+});
 
 app.use(
   "*",
@@ -17,6 +28,14 @@ app.use(
     allowHeaders: ["Content-Type", "Authorization", "Upgrade"],
   })
 );
+
+// Automatická inicializace D1 schématu při prvním requestu
+app.use("*", async (c, next) => {
+  if (c.env?.DB) {
+    await ensureTablesExist(c.env.DB);
+  }
+  await next();
+});
 
 // Health check
 app.get("/api/health", (c) => {

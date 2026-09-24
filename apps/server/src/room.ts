@@ -11,7 +11,7 @@ import {
   type ServerMessage,
   ClientMessageSchema,
 } from "@ci-retro/types";
-import { createDb, retrospectives, columns, cards, votes, actionItems } from "./db";
+import { createDb, ensureTablesExist, retrospectives, columns, cards, votes, actionItems } from "./db";
 
 export interface Env {
   RETRO_ROOM: DurableObjectNamespace<RetroRoom>;
@@ -43,6 +43,7 @@ export class RetroRoom extends DurableObject<Env> {
       return this.state;
     }
 
+    await ensureTablesExist(this.env.DB);
     const db = createDb(this.env.DB);
 
     // 1. Dotaz na retrospektivu s relacemi
