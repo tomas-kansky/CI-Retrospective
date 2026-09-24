@@ -1,0 +1,25 @@
+{
+  "name": "@ci-retro/server",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "wrangler dev",
+    "deploy": "wrangler deploy",
+    "typecheck": "tsc --noEmit",
+    "db:generate": "drizzle-kit generate",
+    "db:migrate": "wrangler d1 migrations apply DB --local"
+  },
+  "dependencies": {
+    "@ci-retro/types": "*",
+    "hono": "^4.7.4",
+    "zod": "^3.24.2",
+    "drizzle-orm": "^0.40.0"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "^4.20250224.0",
+    "drizzle-kit": "^0.30.5",
+    "typescript": "^5.8.2",
+    "wrangler": "^3.114.0"
+  }
+}
