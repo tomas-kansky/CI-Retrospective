@@ -21,17 +21,15 @@ flowchart TD
 
 Cíl: Připravit robustní vývojové prostředí s okamžitou typovou bezpečností mezi frontendem a backendem na Cloudflare.
 
-### Task 1.1: Inicializace Monorepa (pnpm workspaces / npm workspaces)
-* **Návrh implementace**:
-  * Struktura:
-    * `apps/web`: React 19 + Vite + TypeScript.
-    * `apps/server`: Cloudflare Workers + Hono + Cloudflare Durable Objects.
-    * `packages/types`: Sdílená TypeScript rozhraní, Zod schémata pro validaci a WebSocket zprávy.
-  * Nastavení sdíleného `tsconfig.json`, ESLint a Prettier.
-* **Akceptační kritéria**:
-  * Monorepo lze nainstalovat jediným příkazem (`npm install`).
-  * `apps/web` i `apps/server` importují typy z `packages/types`.
-  * Lokální dev servery běží paralelně přes `npm run dev`.
+### Task 1.1: Inicializace Monorepa (npm workspaces) ✅ HOTOVO
+* **Stav**: Dokončeno (commit `b98cd10`).
+* **Implementace**:
+  * Vytvořena struktura workspaces:
+    * `apps/web`: React 19 + Vite + Lucide icons + @dnd-kit + glassmorphic dark/light design system.
+    * `apps/server`: Cloudflare Workers + Hono + Durable Objects (`RetroRoom`).
+    * `packages/types`: Zod schémata a TypeScript rozhraní pro board, karty, hlasy a WebSocket protokol.
+  * Zaveden sdílený `tsconfig.base.json` s path aliasingem pro okamžitou typovou kontrolu.
+  * Ověřena instalace balíčků, `typecheck` napříč všemi workspaces i Vite build.
 
 ### Task 1.2: Konfigurace Cloudflare Wrangler & D1 Databáze
 * **Návrh implementace**:
