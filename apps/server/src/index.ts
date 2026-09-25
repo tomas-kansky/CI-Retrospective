@@ -195,6 +195,9 @@ function defangUntrustedText(text: string | null | undefined): string {
     .replace(/```/g, "'''")
     // Neutralizace pokusů o vkládání systémových instrukčních tagů
     .replace(/<\/?(?:system|instruction|prompt|ai-instruction|override)[^>]*>/gi, "[filtered-tag]")
+    // Neutralizace direktiv pro přepsání systémových instrukcí (Prompt Injection)
+    .replace(/\b(?:ignoruj|ignore)\s+(?:všechny|all)?\s*(?:předchozí|previous)?\s*(?:instrukce|pokyny|instructions)\b/gi, "[blocked-instruction-attempt]")
+    .replace(/\b(?:you are now|nyní jsi)\b/gi, "[blocked-roleplay-attempt]")
     .trim();
 }
 
@@ -229,7 +232,7 @@ function generateTicketMarkdown(t: typeof tickets.$inferSelect): string {
     }
   }
 
-  const safeTitle = t.title.replace(/"/g, '\\"').replace(/[\r\n]+/g, " ");
+  const safeTitle = defangUntrustedText(t.title).replace(/"/g, '\\"').replace(/[\r\n]+/g, " ");
   const safeAuthor = t.authorName.replace(/"/g, '\\"');
   const safeUserAgent = (t.userAgent || "").replace(/"/g, '\\"');
 
