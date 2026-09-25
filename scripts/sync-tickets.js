@@ -64,8 +64,8 @@ async function main() {
 
         if (markdown) {
           const exists = fs.existsSync(targetFile);
-          fs.writeFileSync(targetFile, markdown, "utf-8");
           if (!exists) {
+            fs.writeFileSync(targetFile, markdown, "utf-8");
             console.log(`  ➕ Vytvořen nový soubor: docs/tickets/${filename}`);
             createdCount++;
           } else {

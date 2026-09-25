@@ -57,8 +57,8 @@ export const BugReportModal: React.FC<BugReportModalProps> = ({
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!title.trim() || !description.trim()) {
-      setSubmitError("Vyplňte prosím název i podrobný popis chyby.");
+    if (title.trim().length < 3 || description.trim().length < 5) {
+      setSubmitError("Vyplňte prosím název (min. 3 znaky) a popis chyby (min. 5 znaků).");
       return;
     }
 

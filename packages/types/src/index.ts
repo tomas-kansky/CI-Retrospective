@@ -252,10 +252,10 @@ export const TicketPrioritySchema = z.enum(["low", "medium", "high", "critical"]
 export type TicketPriority = z.infer<typeof TicketPrioritySchema>;
 
 export const CreateTicketSchema = z.object({
-  title: z.string().trim().min(1, "Název chyby je povinný").max(120, "Název může mít maximálně 120 znaků"),
+  title: z.string().trim().min(3, "Název chyby musí mít alespoň 3 znaky").max(120, "Název může mít maximálně 120 znaků"),
   type: TicketTypeSchema.default("bug"),
   priority: TicketPrioritySchema.default("medium"),
-  description: z.string().trim().min(1, "Popis je povinný").max(2000, "Popis může mít maximálně 2000 znaků"),
+  description: z.string().trim().min(5, "Popis chyby musí mít alespoň 5 znaků").max(2000, "Popis může mít maximálně 2000 znaků"),
   stepsToReproduce: z.string().trim().max(1500, "Kroky k reprodukci mohou mít maximálně 1500 znaků").optional(),
   expectedBehavior: z.string().trim().max(500, "Očekávané chování může mít maximálně 500 znaků").optional(),
   actualBehavior: z.string().trim().max(500, "Reálné chování může mít maximálně 500 znaků").optional(),
