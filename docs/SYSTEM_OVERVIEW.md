@@ -128,7 +128,7 @@ Každá retrospektiva prochází těmito fázemi (`RetroPhase`):
 | Potřebuji upravit... | Hledej v souboru: |
 |---|---|
 | **Vzhled karet, sloupců, tlačítek na tabuli** | [`apps/web/src/components/BoardView.tsx`](file:///c:/Users/tomat/Documents/Programming%20Projects/CI%20Retrospective/apps/web/src/components/BoardView.tsx) |
-| **Přetahování karet (Drag & Drop, slučování)** | `customCollisionDetection`, `handleDragEnd` v [BoardView.tsx](file:///c:/Users/tomat/Documents/Programming%20Projects/CI%20Retrospective/apps/web/src/components/BoardView.tsx#L445-L540) |
+| **Přetahování karet (Drag & Drop, mobilní dotyk, slučování)** | `MouseSensor`, `TouchSensor`, `customCollisionDetection`, `handleDragEnd` v [BoardView.tsx](file:///c:/Users/tomat/Documents/Programming%20Projects/CI%20Retrospective/apps/web/src/components/BoardView.tsx#L445-L540) |
 | **Klientskou WebSocket logiku, reconnect, akce** | [`apps/web/src/hooks/useRetroRoom.ts`](file:///c:/Users/tomat/Documents/Programming%20Projects/CI%20Retrospective/apps/web/src/hooks/useRetroRoom.ts) |
 | **Serverovou logiku místnosti, herní pravidla, blur** | [`apps/server/src/room.ts`](file:///c:/Users/tomat/Documents/Programming%20Projects/CI%20Retrospective/apps/server/src/room.ts) |
 | **REST endpointy, tvorbu retro, šablony, tickety** | [`apps/server/src/index.ts`](file:///c:/Users/tomat/Documents/Programming%20Projects/CI%20Retrospective/apps/server/src/index.ts) |

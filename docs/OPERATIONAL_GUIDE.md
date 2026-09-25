@@ -51,6 +51,12 @@ Každý agent by měl projít tímto kontrolním seznamem:
 - Uživatelský profil je uložen v `localStorage` pod klíčem `ci_retro_user`.
 - Pokud uživatel změní jméno přes kostku 🎲 nebo ručně, aktualizuje se jak `localStorage`, tak `ws.send({ type: "JOIN", ... })`.
 
+### 2.5 Drag & Drop na dotykových zařízeních (Mobile Touch Support)
+- **Senzory v `@dnd-kit/core`**: Používáme kombinaci `MouseSensor` (desktop, `distance: 5`) a `TouchSensor` (mobil, `delay: 150`, `tolerance: 5`). Samotný `PointerSensor` na mobilních prohlížečích (Safari iOS, Chrome Android) selhává kvůli pasivním touchmove listenerům a gestům scrollování.
+- **`touchAction: "none"` na drag handle**: Draggable prvek (ikonka úchytu `<GripVertical />`) MUSÍ mít nastaveno `touchAction: "none"` a `WebkitTouchCallout: "none"`, jinak prohlížeč přeruší tah a zahájí nativní rolování stránky.
+- **Dostatečná dotyková plocha**: Drag handle má minimální velikost 32x36 px pro snadné uchopení prstem. Tělo karty zůstává bez `touchAction: "none"`, aby uživatelé na mobilu mohli sloupcem plynule vertikálně i horizontálně scrollovat.
+- **Haptická odezva**: Při zahájení tahu se na podporovaných zařízeních vyvolá jemná vibrace (`navigator.vibrate(20)`).
+
 ---
 
 ## 🛠️ 3. Operativní návody (Step-by-Step Playbooks)

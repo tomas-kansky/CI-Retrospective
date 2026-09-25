@@ -5,12 +5,15 @@ import {
   useDraggable,
   useSensor,
   useSensors,
-  PointerSensor,
+  MouseSensor,
+  TouchSensor,
+  KeyboardSensor,
   type DragEndEvent,
   type DragStartEvent,
   DragOverlay,
   pointerWithin,
   rectIntersection,
+  closestCenter,
   type CollisionDetection,
 } from "@dnd-kit/core";
 import {
@@ -142,20 +145,33 @@ const DraggableCard: React.FC<DraggableCardProps> = ({
       )}
 
       <div style={{ display: "flex", alignItems: "flex-start", gap: "6px" }}>
-        {/* Drag handle */}
+        {/* Drag handle s plnou podporou pro mobilní dotyky (touch-action: none) */}
         <div
           {...attributes}
           {...listeners}
           title="Přetáhnout kartu (na jinou kartu pro spojení, nebo do sloupce)"
           style={{
             cursor: "grab",
-            color: "var(--text-dim)",
-            padding: "2px 0",
+            touchAction: "none",
+            WebkitTouchCallout: "none",
+            WebkitUserSelect: "none",
+            userSelect: "none",
+            color: "var(--text-muted)",
+            padding: "8px 6px",
+            margin: "-4px 2px -4px -6px",
+            borderRadius: "var(--radius-sm)",
             display: "flex",
             alignItems: "center",
+            justifyContent: "center",
+            minWidth: "32px",
+            minHeight: "36px",
+            flexShrink: 0,
+            background: "rgba(255, 255, 255, 0.04)",
+            border: "1px solid rgba(255, 255, 255, 0.08)",
+            transition: "background 0.15s ease, border-color 0.15s ease",
           }}
         >
-          <GripVertical size={16} />
+          <GripVertical size={18} />
         </div>
 
         {/* Card Content with Safe Blur */}
@@ -382,14 +398,23 @@ export const BoardView: React.FC<BoardViewProps> = ({ roomId, user, onBack, onUp
     }
   }, [state?.timerDurationSecs, state?.timerEndsAt]);
 
-  // Konfigurace pointer senzoru s minimální tolerancí pohybu (pro zamezení nechtěného dragu při kliknutí)
-  const sensors = useSensors(
-    useSensor(PointerSensor, {
-      activationConstraint: {
-        distance: 5,
-      },
-    })
-  );
+  // Konfigurace senzorů pro myš (desktop) i dotyková zařízení (mobil/tablet)
+  const mouseSensor = useSensor(MouseSensor, {
+    activationConstraint: {
+      distance: 5,
+    },
+  });
+
+  const touchSensor = useSensor(TouchSensor, {
+    activationConstraint: {
+      delay: 150, // 150ms prodleva pro rozlišení mezi scrollováním a tažením
+      tolerance: 5, // tolerance nechtěného mikro-pohybu prstu během prodlevy
+    },
+  });
+
+  const keyboardSensor = useSensor(KeyboardSensor);
+
+  const sensors = useSensors(mouseSensor, touchSensor, keyboardSensor);
 
   useEffect(() => {
     if (!state?.timerEndsAt) {
@@ -475,13 +500,31 @@ export const BoardView: React.FC<BoardViewProps> = ({ roomId, user, onBack, onUp
       return [cardRectCollision];
     }
 
-    return rectCollisions;
+    const colRectCollision = rectCollisions.find(
+      (c) => c.data?.droppableContainer?.data?.current?.type === "COLUMN"
+    );
+    if (colRectCollision) {
+      return [colRectCollision];
+    }
+
+    if (rectCollisions.length > 0) {
+      return rectCollisions;
+    }
+
+    // Poslední záchytný bod pro plynulý drag na dotykových displejích
+    return closestCenter(args);
   };
 
   const handleDragStart = (event: DragStartEvent) => {
     const card = event.active.data?.current?.card as Card | undefined;
     if (card) {
       setActiveCard(card);
+      // Jemná haptická odezva pro dotyková mobilní zařízení při zahájení přetahování
+      if (typeof window !== "undefined" && "navigator" in window && navigator.vibrate) {
+        try {
+          navigator.vibrate(20);
+        } catch {}
+      }
     }
   };
 
@@ -1729,6 +1772,7 @@ export const BoardView: React.FC<BoardViewProps> = ({ roomId, user, onBack, onUp
               cursor: "grabbing",
               userSelect: "none",
               pointerEvents: "none",
+              touchAction: "none",
             }}
           >
             <div style={{ display: "flex", alignItems: "flex-start", gap: "8px" }}>
