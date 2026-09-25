@@ -18,8 +18,12 @@
 - **API & Routing**: [Cloudflare Workers](https://workers.cloudflare.com/) + [Hono](https://hono.dev/)
 - **Databáze**: [Cloudflare D1](https://developers.cloudflare.com/d1/) (Serverless SQLite) + [Drizzle ORM](https://orm.drizzle.team/)
 
-Podrobnou analýzu proveditelnosti, architekturu a datový model najdete v dokumentu:
-👉 [docs/architecture_and_feasibility.md](docs/architecture_and_feasibility.md)
+## 📚 Dokumentace a architektura
+
+- 👉 **[Kompletní systémový přehled a architektura (High-Level Guide)](docs/SYSTEM_OVERVIEW.md)** – *doporučený výchozí bod pro rychlou orientaci v kódu, toku dat a stavovém automatu.*
+- 👉 **[Instrukce pro AI agenty a workflow](AGENTS.md)** – *pravidla vývoje, zákaz browser testů, conventional commits a auto-push.*
+- 👉 **[Evidence ticketů a chyb](docs/tickets/)** – *hlášení z aplikace a jejich stav.*
+- 👉 **[Původní studie proveditelnosti](docs/architecture_and_feasibility.md)**
 
 ## 📄 Licence
 
