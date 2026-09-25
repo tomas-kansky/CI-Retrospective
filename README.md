@@ -21,6 +21,7 @@
 ## 📚 Dokumentace a architektura
 
 - 👉 **[Kompletní systémový přehled a architektura (High-Level Guide)](docs/SYSTEM_OVERVIEW.md)** – *doporučený výchozí bod pro rychlou orientaci v kódu, toku dat a stavovém automatu.*
+- 👉 **[Operativní příručka a checklist pro agenty (Runbook)](docs/OPERATIONAL_GUIDE.md)** – *konkrétní postupy, pasti a krok-za-krokem recepty pro vývoj.*
 - 👉 **[Instrukce pro AI agenty a workflow](AGENTS.md)** – *pravidla vývoje, zákaz browser testů, conventional commits a auto-push.*
 - 👉 **[Evidence ticketů a chyb](docs/tickets/)** – *hlášení z aplikace a jejich stav.*
 - 👉 **[Původní studie proveditelnosti](docs/architecture_and_feasibility.md)**

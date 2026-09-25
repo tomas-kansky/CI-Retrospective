@@ -7,6 +7,7 @@ Tento dokument je primárním rozcestníkem pro AI agenty pracující v repozit�
 ## 🗺️ Rychlá orientace v projektu (Quick Architecture Summary)
 
 > **Kompletní systémový a architektonický přehled:** Přečtěte si [docs/SYSTEM_OVERVIEW.md](docs/SYSTEM_OVERVIEW.md) pro podrobný popis celého systému, stavového automatu a toku dat.
+> **Podrobný operativní runbook:** Přečtěte si [docs/OPERATIONAL_GUIDE.md](docs/OPERATIONAL_GUIDE.md) pro konkrétní postupy a recepty.
 
 ### 1. Co je tento projekt?
 Real-time webová aplikace pro týmové retrospektivy postavená na serverless technologiích Cloudflare (Workers, Durable Objects, D1 SQLite).
@@ -33,6 +34,29 @@ Real-time webová aplikace pro týmové retrospektivy postavená na serverless t
 | REST API endpointy | `apps/server/src/index.ts` |
 | Databázové schéma D1 | `apps/server/src/db/schema.ts` |
 | Sdílené typy zpráv | `packages/types/src/index.ts` |
+
+---
+
+## ⚡ Operativní body pro agenty (Agent Operational Checklist)
+
+Každý agent by měl při řešení úkolů postupovat podle těchto bodů:
+
+### 1. Před začátkem práce:
+- Zkontroluj `git status` a poslední commity.
+- Ujisti se, zda neměníš sdílené typy (`packages/types`) – pokud ano, začni vždy v nich.
+
+### 2. Během implementace (Klíčové pasti a pravidla):
+- **Cloudflare Hibernation**: V `apps/server/src/room.ts` se Durable Object uspává – vždy zajisti načtení stavu přes `ensureStateLoaded()` při každé příchozí zprávě.
+- **Žádné plošné `ws.close()`**: Neodpojuj aktivní spojení, vyvolává to rušivý reconnect u klientů.
+- **Server-Side Blur**: Ve fázi `BRAINSTORMING` nikdy neposílej text cizích karet neanonymizovaný; maskování `••••••••••••` musí dělat server.
+- **Optimistic UI**: Akce na frontendu (přidání karty, přesun, hlas) musí okamžitě aktualizovat lokální stav `state` v Reactu před odpovědí serveru.
+- **Styling**: Projekt používá **Vanilla CSS** s proměnnými v `apps/web/src/index.css`. Nepoužívej Tailwind utility třídy.
+
+### 3. Před odevzdáním práce:
+- **Typová kontrola**: VŽDY spusť `npm run typecheck --workspaces`.
+- **Commit**: Dodrž formát `<type>: <popisek>`.
+- **Automatický push**: Ihned po commitu spusť `git push origin main`.
+- **Žádné browser testy**: Okamžitě předej výsledek uživateli.
 
 ---
 
