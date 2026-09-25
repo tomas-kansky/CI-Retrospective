@@ -12,6 +12,7 @@ import {
   ArrowLeft,
   Share2,
   Clock,
+  ChevronDown,
   Eye,
   EyeOff,
   ThumbsUp,
@@ -238,6 +239,16 @@ export const BoardView: React.FC<BoardViewProps> = ({ roomId, user, onBack }) =>
 
   // Synchronizovaný lokální odpočet času
   const [secondsLeft, setSecondsLeft] = useState<number | null>(null);
+  const [selectedTimerDuration, setSelectedTimerDuration] = useState<number>(300);
+  const [isTimerMenuOpen, setIsTimerMenuOpen] = useState(false);
+  const [customMinutesInput, setCustomMinutesInput] = useState("");
+
+  // Synchronizace délky z načteného stavu
+  useEffect(() => {
+    if (state?.timerDurationSecs && !state.timerEndsAt) {
+      setSelectedTimerDuration(state.timerDurationSecs);
+    }
+  }, [state?.timerDurationSecs, state?.timerEndsAt]);
 
   // Konfigurace pointer senzoru s minimální tolerancí pohybu (pro zamezení nechtěného dragu při kliknutí)
   const sensors = useSensors(
@@ -254,7 +265,7 @@ export const BoardView: React.FC<BoardViewProps> = ({ roomId, user, onBack }) =>
       return;
     }
 
-    const interval = setInterval(() => {
+    const updateTimer = () => {
       const diff = Math.max(0, Math.floor((state.timerEndsAt! - Date.now()) / 1000));
       setSecondsLeft(diff);
 
@@ -274,7 +285,10 @@ export const BoardView: React.FC<BoardViewProps> = ({ roomId, user, onBack }) =>
           osc.stop(ctx.currentTime + 1.2);
         } catch {}
       }
-    }, 500);
+    };
+
+    updateTimer();
+    const interval = setInterval(updateTimer, 500);
 
     return () => clearInterval(interval);
   }, [state?.timerEndsAt]);
@@ -358,10 +372,27 @@ export const BoardView: React.FC<BoardViewProps> = ({ roomId, user, onBack }) =>
   };
 
   const formatTimer = (totalSeconds: number | null) => {
-    if (totalSeconds === null) return "5:00";
-    const mins = Math.floor(totalSeconds / 60);
-    const secs = totalSeconds % 60;
+    const secsToFormat = totalSeconds !== null ? totalSeconds : selectedTimerDuration;
+    const mins = Math.floor(secsToFormat / 60);
+    const secs = secsToFormat % 60;
     return `${mins}:${secs < 10 ? "0" : ""}${secs}`;
+  };
+
+  const handleSetTimerDuration = (seconds: number) => {
+    setSelectedTimerDuration(seconds);
+    setIsTimerMenuOpen(false);
+    if (state?.timerEndsAt) {
+      controlTimer("START", seconds);
+    }
+  };
+
+  const handleCustomTimerSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    const mins = parseInt(customMinutesInput, 10);
+    if (!isNaN(mins) && mins > 0 && mins <= 180) {
+      handleSetTimerDuration(mins * 60);
+      setCustomMinutesInput("");
+    }
   };
 
   return (
@@ -468,55 +499,208 @@ export const BoardView: React.FC<BoardViewProps> = ({ roomId, user, onBack }) =>
               {state.cardsBlurred ? "Maskováno" : "Viditelné"}
             </button>
 
-            {/* Synchronized Timer */}
+            {/* Synchronized Timer with Custom Duration Picker */}
             <div
               style={{
+                position: "relative",
                 display: "flex",
                 alignItems: "center",
                 gap: "6px",
-                padding: "4px 10px",
+                padding: "4px 8px",
                 borderRadius: "var(--radius-sm)",
                 background: "var(--bg-card)",
                 border: "1px solid var(--border-color)",
               }}
             >
-              <Clock size={15} color="var(--accent-indigo)" />
-              <span
+              {/* Duration selector toggle button */}
+              <button
+                type="button"
+                onClick={() => setIsTimerMenuOpen(!isTimerMenuOpen)}
+                title="Nastavit čas odpočtu"
                 style={{
-                  fontFamily: "monospace",
-                  fontWeight: 700,
-                  fontSize: "0.95rem",
-                  color: secondsLeft !== null && secondsLeft < 30 ? "var(--accent-rose)" : "var(--text-main)",
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "6px",
+                  background: "transparent",
+                  border: "none",
+                  cursor: "pointer",
+                  padding: "2px 4px",
+                  borderRadius: "var(--radius-sm)",
                 }}
               >
-                {formatTimer(secondsLeft)}
-              </span>
+                <Clock size={15} color="var(--accent-indigo)" />
+                <span
+                  style={{
+                    fontFamily: "monospace",
+                    fontWeight: 700,
+                    fontSize: "0.95rem",
+                    color: secondsLeft !== null && secondsLeft < 30 ? "var(--accent-rose)" : "var(--text-main)",
+                  }}
+                >
+                  {formatTimer(secondsLeft)}
+                </span>
+                <ChevronDown size={13} color="var(--text-dim)" />
+              </button>
 
+              {/* Start / Pause */}
               {state.timerEndsAt ? (
                 <button
+                  type="button"
                   onClick={() => controlTimer("PAUSE")}
-                  title="Pauza"
-                  style={{ background: "transparent", color: "var(--text-muted)", padding: "2px" }}
+                  title="Pozastavit odpočet"
+                  style={{ background: "transparent", color: "var(--accent-amber, #f59e0b)", padding: "4px", display: "flex", alignItems: "center" }}
                 >
                   <Pause size={14} />
                 </button>
               ) : (
                 <button
-                  onClick={() => controlTimer("START", 300)}
-                  title="Spustit 5 minut"
-                  style={{ background: "transparent", color: "var(--accent-emerald)", padding: "2px" }}
+                  type="button"
+                  onClick={() => controlTimer("START", selectedTimerDuration)}
+                  title={`Spustit (${Math.floor(selectedTimerDuration / 60)} min)`}
+                  style={{ background: "transparent", color: "var(--accent-emerald)", padding: "4px", display: "flex", alignItems: "center" }}
                 >
                   <Play size={14} />
                 </button>
               )}
 
+              {/* Add +1 min button */}
               <button
+                type="button"
+                onClick={() => controlTimer("ADD_MINUTE")}
+                title="Přidat 1 minutu (+1m)"
+                style={{
+                  background: "rgba(255, 255, 255, 0.05)",
+                  border: "1px solid rgba(255, 255, 255, 0.1)",
+                  color: "var(--text-muted)",
+                  padding: "2px 6px",
+                  borderRadius: "4px",
+                  fontSize: "0.75rem",
+                  fontWeight: 600,
+                  cursor: "pointer",
+                }}
+              >
+                +1m
+              </button>
+
+              {/* Reset */}
+              <button
+                type="button"
                 onClick={() => controlTimer("RESET")}
-                title="Reset"
-                style={{ background: "transparent", color: "var(--text-dim)", padding: "2px" }}
+                title="Resetovat odpočet"
+                style={{ background: "transparent", color: "var(--text-dim)", padding: "4px", display: "flex", alignItems: "center" }}
               >
                 <RotateCcw size={14} />
               </button>
+
+              {/* Dropdown Menu for Duration Selection */}
+              {isTimerMenuOpen && (
+                <>
+                  <div
+                    onClick={() => setIsTimerMenuOpen(false)}
+                    style={{ position: "fixed", inset: 0, zIndex: 90 }}
+                  />
+                  <div
+                    style={{
+                      position: "absolute",
+                      top: "calc(100% + 6px)",
+                      left: 0,
+                      zIndex: 100,
+                      background: "var(--bg-card)",
+                      border: "1px solid var(--border-color)",
+                      borderRadius: "var(--radius-md)",
+                      padding: "12px",
+                      boxShadow: "0 10px 25px -5px rgba(0, 0, 0, 0.5)",
+                      minWidth: "230px",
+                      display: "flex",
+                      flexDirection: "column",
+                      gap: "10px",
+                    }}
+                  >
+                    <div style={{ fontSize: "0.8rem", fontWeight: 700, color: "var(--text-muted)" }}>
+                      Nastavit délku odpočtu
+                    </div>
+
+                    {/* Quick Presets */}
+                    <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: "6px" }}>
+                      {[
+                        { label: "1 min", secs: 60 },
+                        { label: "3 min", secs: 180 },
+                        { label: "5 min", secs: 300 },
+                        { label: "10 min", secs: 600 },
+                        { label: "15 min", secs: 900 },
+                        { label: "25 min", secs: 1500 },
+                      ].map((preset) => (
+                        <button
+                          key={preset.secs}
+                          type="button"
+                          onClick={() => handleSetTimerDuration(preset.secs)}
+                          style={{
+                            padding: "6px 4px",
+                            fontSize: "0.8rem",
+                            borderRadius: "var(--radius-sm)",
+                            background:
+                              selectedTimerDuration === preset.secs
+                                ? "var(--accent-indigo)"
+                                : "rgba(255, 255, 255, 0.05)",
+                            color: selectedTimerDuration === preset.secs ? "#ffffff" : "var(--text-main)",
+                            border: "1px solid var(--border-color)",
+                            cursor: "pointer",
+                            fontWeight: selectedTimerDuration === preset.secs ? 700 : 500,
+                          }}
+                        >
+                          {preset.label}
+                        </button>
+                      ))}
+                    </div>
+
+                    {/* Custom Minutes Input */}
+                    <form
+                      onSubmit={handleCustomTimerSubmit}
+                      style={{
+                        display: "flex",
+                        gap: "6px",
+                        paddingTop: "6px",
+                        borderTop: "1px solid var(--border-color)",
+                      }}
+                    >
+                      <input
+                        type="number"
+                        min="1"
+                        max="180"
+                        placeholder="Vlastní (min)"
+                        value={customMinutesInput}
+                        onChange={(e) => setCustomMinutesInput(e.target.value)}
+                        style={{
+                          flex: 1,
+                          padding: "6px 8px",
+                          borderRadius: "var(--radius-sm)",
+                          background: "var(--bg-secondary)",
+                          border: "1px solid var(--border-color)",
+                          color: "var(--text-main)",
+                          fontSize: "0.8rem",
+                          width: "100%",
+                        }}
+                      />
+                      <button
+                        type="submit"
+                        style={{
+                          padding: "6px 10px",
+                          borderRadius: "var(--radius-sm)",
+                          background: "var(--accent-indigo)",
+                          color: "#ffffff",
+                          fontSize: "0.8rem",
+                          fontWeight: 600,
+                          border: "none",
+                          cursor: "pointer",
+                          whiteSpace: "nowrap",
+                        }}
+                      >
+                        Nastavit
+                      </button>
+                    </form>
+                  </div>
+                </>
+              )}
             </div>
 
             {/* Action Items Button */}

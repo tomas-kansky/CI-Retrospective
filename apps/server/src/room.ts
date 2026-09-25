@@ -19,6 +19,7 @@ export interface Env {
 }
 
 interface SocketAttachment {
+  roomId?: string;
   userId: string;
   name: string;
   avatarColor: string;
@@ -30,6 +31,7 @@ export class RetroRoom extends DurableObject<Env> {
   private state: RetrospectiveState | null = null;
   private isLoadedFromDb = false;
   private persistTimeout: any = null;
+  private roomId: string | null = null;
 
   constructor(ctx: DurableObjectState, env: Env) {
     super(ctx, env);
@@ -38,10 +40,17 @@ export class RetroRoom extends DurableObject<Env> {
   /**
    * Načte počáteční stav tabule z centrální D1 databáze, pokud ještě není v paměti
    */
-  private async ensureStateLoaded(roomId: string): Promise<RetrospectiveState> {
+  private async ensureStateLoaded(roomIdParam?: string): Promise<RetrospectiveState> {
     if (this.state && this.isLoadedFromDb) {
       return this.state;
     }
+
+    const roomId = roomIdParam || this.roomId || (await this.ctx.storage.get<string>("roomId"));
+    if (!roomId) {
+      throw new Error("Room ID is required to load retrospective state");
+    }
+    this.roomId = roomId;
+    await this.ctx.storage.put("roomId", roomId);
 
     await ensureTablesExist(this.env.DB);
     const db = createDb(this.env.DB);
@@ -61,10 +70,7 @@ export class RetroRoom extends DurableObject<Env> {
       throw new Error(`Retrospective ${roomId} not found in D1`);
     }
 
-    // 2. Dotaz na karty a hlasy
-    const allCards = await db.select().from(cards).where(
-      eq(cards.columnId, retro.columns[0]?.id || "") // nebo načteme přes sloupce
-    );
+    // 2. Dotaz na karty a hlasy pro sloupce retrospektivy
 
     // Všechny karty pro všechny sloupce retrospektivy
     const columnIds = retro.columns.map((c) => c.id);
@@ -136,7 +142,18 @@ export class RetroRoom extends DurableObject<Env> {
    */
   async fetch(request: Request): Promise<Response> {
     const url = new URL(request.url);
-    const roomId = url.searchParams.get("roomId") || url.pathname.split("/")[3] || "default";
+
+    let roomId = url.searchParams.get("roomId");
+    if (!roomId) {
+      const parts = url.pathname.split("/").filter(Boolean);
+      const roomIdx = parts.indexOf("room");
+      if (roomIdx !== -1 && parts[roomIdx + 1]) {
+        roomId = parts[roomIdx + 1];
+      }
+    }
+    if (!roomId) {
+      roomId = "default";
+    }
 
     // 1. WebSocket Upgrade handshake
     if (request.headers.get("Upgrade") === "websocket") {
@@ -150,6 +167,7 @@ export class RetroRoom extends DurableObject<Env> {
 
       // Použití WebSocket Hibernation API: Cloudflare uspí DO při nečinnosti!
       const attachment: SocketAttachment = {
+        roomId,
         userId,
         name: userName,
         avatarColor,
@@ -159,14 +177,19 @@ export class RetroRoom extends DurableObject<Env> {
       this.ctx.acceptWebSocket(server, [userId]);
       server.serializeAttachment(attachment);
 
-      // Zajistíme načtení stavu
-      await this.ensureStateLoaded(roomId);
+      try {
+        // Zajistíme načtení stavu
+        await this.ensureStateLoaded(roomId);
 
-      // Odešleme klientovi synchronizovaný stav (s ohledem na bezpečný blur)
-      this.sendStateToSocket(server, attachment);
+        // Odešleme klientovi synchronizovaný stav (s ohledem na bezpečný blur)
+        this.sendStateToSocket(server, attachment);
 
-      // Oznámíme ostatním nového uživatele v místnosti
-      this.broadcastPresence();
+        // Oznámíme ostatním nového uživatele v místnosti
+        this.broadcastPresence();
+      } catch (err: any) {
+        console.error(`Chyba při načítání stavu místnosti ${roomId}:`, err);
+        this.sendError(server, `Chyba při načítání stavu: ${err?.message || err}`);
+      }
 
       return new Response(null, {
         status: 101,
@@ -208,7 +231,22 @@ export class RetroRoom extends DurableObject<Env> {
       const clientMsg = validation.data;
       const attachment = ws.deserializeAttachment() as SocketAttachment;
 
-      if (!this.state) return;
+      // Pokud DO proběhl hibernací a stav není v paměti, načteme ho z D1/storage
+      if (!this.state) {
+        const targetRoomId = attachment?.roomId || this.roomId || (await this.ctx.storage.get<string>("roomId"));
+        if (targetRoomId) {
+          try {
+            await this.ensureStateLoaded(targetRoomId);
+          } catch (e: any) {
+            console.error("Chyba při obnově stavu po hibernaci:", e);
+          }
+        }
+      }
+
+      if (!this.state) {
+        this.sendError(ws, "Místnost není inicializována");
+        return;
+      }
 
       switch (clientMsg.type) {
         case "JOIN": {
@@ -365,9 +403,10 @@ export class RetroRoom extends DurableObject<Env> {
 
         case "TIMER_CONTROL": {
           const action = clientMsg.payload.action;
-          const duration = clientMsg.payload.durationSecs || this.state.timerDurationSecs;
+          const duration = clientMsg.payload.durationSecs || this.state.timerDurationSecs || 300;
 
           if (action === "START") {
+            this.state.timerDurationSecs = duration;
             this.state.timerEndsAt = Date.now() + duration * 1000;
           } else if (action === "PAUSE" || action === "RESET") {
             this.state.timerEndsAt = null;
@@ -380,6 +419,7 @@ export class RetroRoom extends DurableObject<Env> {
           }
 
           this.broadcastState();
+          this.scheduleD1Flush();
           break;
         }
 

@@ -171,7 +171,12 @@ app.all("/api/room/:roomId", async (c) => {
 
   const id = c.env.RETRO_ROOM.idFromName(roomId);
   const room = c.env.RETRO_ROOM.get(id);
-  return room.fetch(c.req.raw);
+
+  const url = new URL(c.req.url);
+  url.searchParams.set("roomId", roomId);
+  const newReq = new Request(url.toString(), c.req.raw);
+
+  return room.fetch(newReq);
 });
 
 app.all("/api/room/:roomId/*", async (c) => {
@@ -180,7 +185,12 @@ app.all("/api/room/:roomId/*", async (c) => {
 
   const id = c.env.RETRO_ROOM.idFromName(roomId);
   const room = c.env.RETRO_ROOM.get(id);
-  return room.fetch(c.req.raw);
+
+  const url = new URL(c.req.url);
+  url.searchParams.set("roomId", roomId);
+  const newReq = new Request(url.toString(), c.req.raw);
+
+  return room.fetch(newReq);
 });
 
 export default app;

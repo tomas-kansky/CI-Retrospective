@@ -5,6 +5,7 @@ import type {
   ClientMessage,
   ServerMessage,
   RetroPhase,
+  Card,
 } from "@ci-retro/types";
 
 export interface UseRetroRoomOptions {
@@ -32,11 +33,11 @@ export function useRetroRoom({ roomId, user }: UseRetroRoomOptions) {
 
     const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
     const host = window.location.host;
-    const wsUrl = `${protocol}//${host}/api/room/${roomId}?userId=${encodeURIComponent(
-      user.id
-    )}&userName=${encodeURIComponent(user.name)}&avatarColor=${encodeURIComponent(
-      user.avatarColor
-    )}&isFacilitator=${user.isFacilitator}`;
+    const wsUrl = `${protocol}//${host}/api/room/${roomId}?roomId=${encodeURIComponent(
+      roomId
+    )}&userId=${encodeURIComponent(user.id)}&userName=${encodeURIComponent(
+      user.name
+    )}&avatarColor=${encodeURIComponent(user.avatarColor)}&isFacilitator=${user.isFacilitator}`;
 
     const ws = new WebSocket(wsUrl);
     socketRef.current = ws;
@@ -107,12 +108,26 @@ export function useRetroRoom({ roomId, user }: UseRetroRoomOptions) {
   // Pomocné akce pro komponenty
   const addCard = useCallback(
     (columnId: string, content: string, isAnonymous: boolean = false) => {
+      const optimisticCard: Card = {
+        id: crypto.randomUUID(),
+        columnId,
+        parentCardId: null,
+        authorSessionId: isAnonymous ? "anonymous" : user.id,
+        authorName: isAnonymous ? "Anonym" : user.name,
+        content: content.trim(),
+        sortOrder: state?.cards?.length || 0,
+        createdAt: new Date().toISOString(),
+      };
+
+      // Okamžitá optimistická aktualizace pro nulovou prodlevu v UI
+      setState((prev) => (prev ? { ...prev, cards: [...prev.cards, optimisticCard] } : null));
+
       sendMessage({
         type: "ADD_CARD",
         payload: { columnId, content, isAnonymous },
       });
     },
-    [sendMessage]
+    [sendMessage, user.id, user.name, state?.cards?.length]
   );
 
   const updateCard = useCallback(
@@ -127,6 +142,9 @@ export function useRetroRoom({ roomId, user }: UseRetroRoomOptions) {
 
   const deleteCard = useCallback(
     (cardId: string) => {
+      // Optimistické smazání z UI
+      setState((prev) => (prev ? { ...prev, cards: prev.cards.filter((c) => c.id !== cardId) } : null));
+
       sendMessage({
         type: "DELETE_CARD",
         payload: { cardId },
@@ -176,7 +194,26 @@ export function useRetroRoom({ roomId, user }: UseRetroRoomOptions) {
   );
 
   const controlTimer = useCallback(
-    (action: "START" | "PAUSE" | "RESET" | "ADD_MINUTE", durationSecs?: number) => {
+    (action: "START" | "PAUSE" | "RESET" | "ADD_MINUTE", durationSecs: number = 300) => {
+      // Optimistická aktualizace odpočtu
+      setState((prev) => {
+        if (!prev) return null;
+        let newEndsAt: number | null = prev.timerEndsAt;
+        if (action === "START") {
+          newEndsAt = Date.now() + durationSecs * 1000;
+        } else if (action === "PAUSE" || action === "RESET") {
+          newEndsAt = null;
+        } else if (action === "ADD_MINUTE") {
+          newEndsAt = (newEndsAt || Date.now()) + 60 * 1000;
+        }
+
+        return {
+          ...prev,
+          timerDurationSecs: durationSecs,
+          timerEndsAt: newEndsAt,
+        };
+      });
+
       sendMessage({
         type: "TIMER_CONTROL",
         payload: { action, durationSecs },
