@@ -72,6 +72,30 @@ export async function ensureTablesExist(d1: D1Database) {
           FOREIGN KEY (retrospective_id) REFERENCES retrospectives(id) ON UPDATE no action ON DELETE cascade
         );
       `),
+      d1.prepare(`
+        CREATE TABLE IF NOT EXISTS tickets (
+          id text PRIMARY KEY NOT NULL,
+          title text NOT NULL,
+          type text DEFAULT 'bug' NOT NULL,
+          status text DEFAULT 'open' NOT NULL,
+          priority text DEFAULT 'medium' NOT NULL,
+          description text NOT NULL,
+          steps_to_reproduce text,
+          expected_behavior text,
+          actual_behavior text,
+          author_name text NOT NULL,
+          author_session_id text NOT NULL,
+          room_id text,
+          phase text,
+          user_agent text,
+          screen_resolution text,
+          console_errors text,
+          github_commit_url text,
+          file_path text,
+          created_at text NOT NULL,
+          resolved_at text
+        );
+      `),
     ]);
     tablesInitialized = true;
   } catch (err) {

@@ -237,3 +237,44 @@ export const ServerMessageSchema = z.discriminatedUnion("type", [
   }),
 ]);
 export type ServerMessage = z.infer<typeof ServerMessageSchema>;
+
+// ==========================================
+// 4. TICKETY A HLÁŠENÍ CHYB (Bug Reports)
+// ==========================================
+
+export const TicketTypeSchema = z.enum(["bug", "feature", "enhancement", "ux"]);
+export type TicketType = z.infer<typeof TicketTypeSchema>;
+
+export const TicketStatusSchema = z.enum(["open", "in_progress", "resolved", "closed"]);
+export type TicketStatus = z.infer<typeof TicketStatusSchema>;
+
+export const TicketPrioritySchema = z.enum(["low", "medium", "high", "critical"]);
+export type TicketPriority = z.infer<typeof TicketPrioritySchema>;
+
+export const CreateTicketSchema = z.object({
+  title: z.string().min(1, "Název chyby je povinný"),
+  type: TicketTypeSchema.default("bug"),
+  priority: TicketPrioritySchema.default("medium"),
+  description: z.string().min(1, "Popis je povinný"),
+  stepsToReproduce: z.string().optional(),
+  expectedBehavior: z.string().optional(),
+  actualBehavior: z.string().optional(),
+  authorName: z.string(),
+  authorSessionId: z.string(),
+  roomId: z.string().optional(),
+  phase: z.string().optional(),
+  userAgent: z.string().optional(),
+  screenResolution: z.string().optional(),
+  consoleErrors: z.string().optional(),
+});
+export type CreateTicketInput = z.infer<typeof CreateTicketSchema>;
+
+export const TicketSchema = CreateTicketSchema.extend({
+  id: z.string(),
+  status: TicketStatusSchema.default("open"),
+  filePath: z.string().optional(),
+  githubCommitUrl: z.string().optional(),
+  createdAt: z.string(),
+  resolvedAt: z.string().optional(),
+});
+export type Ticket = z.infer<typeof TicketSchema>;

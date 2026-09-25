@@ -36,11 +36,13 @@ import {
   Layers,
   Unlink,
   Sparkles,
+  Bug,
 } from "lucide-react";
 import type { UserSession, RetroPhase, Card, Column } from "@ci-retro/types";
 import { useRetroRoom } from "../hooks/useRetroRoom";
 import { ExportModal } from "./ExportModal";
 import { ActionItemsDrawer } from "./ActionItemsDrawer";
+import { BugReportModal } from "./BugReportModal";
 import { getRandomAnonymousName } from "../utils/names";
 
 // Draggable & Droppable Card Component
@@ -365,6 +367,7 @@ export const BoardView: React.FC<BoardViewProps> = ({ roomId, user, onBack, onUp
   // Modály
   const [isExportOpen, setIsExportOpen] = useState(false);
   const [isActionItemsOpen, setIsActionItemsOpen] = useState(false);
+  const [isBugReportOpen, setIsBugReportOpen] = useState(false);
 
   // Synchronizovaný lokální odpočet času
   const [secondsLeft, setSecondsLeft] = useState<number | null>(null);
@@ -992,6 +995,30 @@ export const BoardView: React.FC<BoardViewProps> = ({ roomId, user, onBack, onUp
             >
               {copiedLink ? <Check size={15} /> : <Share2 size={15} />}
               {copiedLink ? "Zkopírováno" : "Sdílet"}
+            </button>
+
+            {/* Nahlásit chybu Button */}
+            <button
+              type="button"
+              onClick={() => setIsBugReportOpen(true)}
+              title="Nahlásit chybu nebo zpětnou vazbu"
+              style={{
+                padding: "6px 11px",
+                borderRadius: "var(--radius-sm)",
+                background: "rgba(244, 63, 94, 0.08)",
+                border: "1px solid rgba(244, 63, 94, 0.3)",
+                color: "var(--accent-rose)",
+                display: "flex",
+                alignItems: "center",
+                gap: "6px",
+                fontSize: "0.82rem",
+                fontWeight: 600,
+                cursor: "pointer",
+                transition: "all 0.15s ease",
+              }}
+            >
+              <Bug size={14} />
+              <span>Nahlásit chybu</span>
             </button>
 
             {/* Online Presence Avatars & Dropdown Popover */}
@@ -1675,6 +1702,15 @@ export const BoardView: React.FC<BoardViewProps> = ({ roomId, user, onBack, onUp
         onClose={() => setIsActionItemsOpen(false)}
         onAdd={addActionItem}
         onToggleStatus={(id, status) => updateActionItem(id, status)}
+      />
+
+      {/* Bug Report Modal */}
+      <BugReportModal
+        isOpen={isBugReportOpen}
+        onClose={() => setIsBugReportOpen(false)}
+        roomId={roomId}
+        phase={state.phase}
+        currentUser={user}
       />
 
       {/* Drag Overlay pro plynulý náhled tažené karty pod kurzorem */}

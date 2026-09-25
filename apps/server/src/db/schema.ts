@@ -61,6 +61,32 @@ export const actionItems = sqliteTable("action_items", {
   createdAt: text("created_at").notNull(),
 });
 
+export const tickets = sqliteTable("tickets", {
+  id: text("id").primaryKey(),
+  title: text("title").notNull(),
+  type: text("type").notNull().default("bug"),
+  status: text("status").notNull().default("open"),
+  priority: text("priority").notNull().default("medium"),
+  description: text("description").notNull(),
+  stepsToReproduce: text("steps_to_reproduce"),
+  expectedBehavior: text("expected_behavior"),
+  actualBehavior: text("actual_behavior"),
+  authorName: text("author_name").notNull(),
+  authorSessionId: text("author_session_id").notNull(),
+  roomId: text("room_id"),
+  phase: text("phase"),
+  userAgent: text("user_agent"),
+  screenResolution: text("screen_resolution"),
+  consoleErrors: text("console_errors"),
+  githubCommitUrl: text("github_commit_url"),
+  filePath: text("file_path"),
+  createdAt: text("created_at").notNull(),
+  resolvedAt: text("resolved_at"),
+});
+
+export type TicketRecord = typeof tickets.$inferSelect;
+export type InsertTicket = typeof tickets.$inferInsert;
+
 export type RetrospectiveRecord = typeof retrospectives.$inferSelect;
 export type InsertRetrospective = typeof retrospectives.$inferInsert;
 

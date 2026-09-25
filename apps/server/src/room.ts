@@ -16,6 +16,9 @@ import { createDb, ensureTablesExist, retrospectives, columns, cards, votes, act
 export interface Env {
   RETRO_ROOM: DurableObjectNamespace<RetroRoom>;
   DB: D1Database;
+  GITHUB_TOKEN?: string;
+  GITHUB_OWNER?: string;
+  GITHUB_REPO?: string;
 }
 
 interface SocketAttachment {

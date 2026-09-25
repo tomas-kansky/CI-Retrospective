@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from "react";
-import { Sparkles, Moon, Sun, Plus, RefreshCw, Layers, CheckCircle2, ChevronRight, X, ArrowRight } from "lucide-react";
+import { Sparkles, Moon, Sun, Plus, RefreshCw, Layers, CheckCircle2, ChevronRight, X, ArrowRight, Bug } from "lucide-react";
 import type { TemplateType, UserSession } from "@ci-retro/types";
 import { BoardView } from "./components/BoardView";
+import { BugReportModal } from "./components/BugReportModal";
 import { getRandomAnonymousName } from "./utils/names";
 
 interface RetroItem {
@@ -68,6 +69,7 @@ export const App: React.FC = () => {
   const [retros, setRetros] = useState<RetroItem[]>([]);
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [isModalOpen, setIsModalOpen] = useState<boolean>(false);
+  const [isBugReportOpen, setIsBugReportOpen] = useState<boolean>(false);
 
   // Formulář pro novou retro
   const [newTitle, setNewTitle] = useState("");
@@ -316,6 +318,27 @@ export const App: React.FC = () => {
           >
             {theme === "dark" ? <Sun size={16} /> : <Moon size={16} />}
             {theme === "dark" ? "Světlý" : "Tmavý"}
+          </button>
+
+          <button
+            onClick={() => setIsBugReportOpen(true)}
+            title="Nahlásit chybu nebo zpětnou vazbu"
+            style={{
+              padding: "8px 12px",
+              borderRadius: "var(--radius-md)",
+              background: "rgba(244, 63, 94, 0.08)",
+              color: "var(--accent-rose)",
+              display: "flex",
+              alignItems: "center",
+              gap: "6px",
+              fontSize: "0.85rem",
+              fontWeight: 600,
+              border: "1px solid rgba(244, 63, 94, 0.3)",
+              cursor: "pointer",
+            }}
+          >
+            <Bug size={15} />
+            <span>Nahlásit chybu</span>
           </button>
         </div>
       </header>
@@ -651,6 +674,13 @@ export const App: React.FC = () => {
           </div>
         </div>
       )}
+
+      {/* Bug Report Modal */}
+      <BugReportModal
+        isOpen={isBugReportOpen}
+        onClose={() => setIsBugReportOpen(false)}
+        currentUser={currentUser}
+      />
     </div>
   );
 };
