@@ -26,4 +26,4 @@ docs/tickets/
 ## 📋 Seznam evidovaných ticketů
 | ID | Typ | Název | Priorita | Stav | Vytvořeno |
 |---|---|---|---|---|---|
-| *(Nové tickety budou automaticky přidávány sem)* | | | | | |
+| [BUG-20260925-120](BUG-20260925-120-test.md) | 🐛 Chyba | Test | Střední | `open` | 2026-09-25 |

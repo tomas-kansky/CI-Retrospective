@@ -233,7 +233,7 @@ export const BugReportModal: React.FC<BugReportModalProps> = ({
                 </p>
               </div>
 
-              {successData.committedToGithub ? (
+              {successData.committedToGithub && (
                 <div
                   style={{
                     width: "100%",
@@ -272,24 +272,6 @@ export const BugReportModal: React.FC<BugReportModalProps> = ({
                       <ExternalLink size={12} />
                     </a>
                   )}
-                </div>
-              ) : (
-                <div
-                  style={{
-                    width: "100%",
-                    padding: "12px 14px",
-                    borderRadius: "var(--radius-md)",
-                    background: "rgba(99, 102, 241, 0.08)",
-                    border: "1px solid rgba(99, 102, 241, 0.25)",
-                    textAlign: "left",
-                    fontSize: "0.8rem",
-                    color: "var(--text-muted)",
-                  }}
-                >
-                  Ticket je uložen v D1. Pro stažení na disk stačí v terminálu spustit:
-                  <code style={{ display: "block", marginTop: "6px", padding: "4px 8px", background: "rgba(0,0,0,0.3)", borderRadius: "4px" }}>
-                    npm run tickets:sync
-                  </code>
                 </div>
               )}
 
