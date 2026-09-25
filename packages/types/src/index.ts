@@ -252,20 +252,20 @@ export const TicketPrioritySchema = z.enum(["low", "medium", "high", "critical"]
 export type TicketPriority = z.infer<typeof TicketPrioritySchema>;
 
 export const CreateTicketSchema = z.object({
-  title: z.string().min(1, "Název chyby je povinný"),
+  title: z.string().trim().min(1, "Název chyby je povinný").max(120, "Název může mít maximálně 120 znaků"),
   type: TicketTypeSchema.default("bug"),
   priority: TicketPrioritySchema.default("medium"),
-  description: z.string().min(1, "Popis je povinný"),
-  stepsToReproduce: z.string().optional(),
-  expectedBehavior: z.string().optional(),
-  actualBehavior: z.string().optional(),
-  authorName: z.string(),
-  authorSessionId: z.string(),
-  roomId: z.string().optional(),
-  phase: z.string().optional(),
-  userAgent: z.string().optional(),
-  screenResolution: z.string().optional(),
-  consoleErrors: z.string().optional(),
+  description: z.string().trim().min(1, "Popis je povinný").max(2000, "Popis může mít maximálně 2000 znaků"),
+  stepsToReproduce: z.string().trim().max(1500, "Kroky k reprodukci mohou mít maximálně 1500 znaků").optional(),
+  expectedBehavior: z.string().trim().max(500, "Očekávané chování může mít maximálně 500 znaků").optional(),
+  actualBehavior: z.string().trim().max(500, "Reálné chování může mít maximálně 500 znaků").optional(),
+  authorName: z.string().trim().max(60),
+  authorSessionId: z.string().trim().max(100),
+  roomId: z.string().trim().max(100).optional(),
+  phase: z.string().trim().max(50).optional(),
+  userAgent: z.string().trim().max(500).optional(),
+  screenResolution: z.string().trim().max(50).optional(),
+  consoleErrors: z.string().max(10000).optional(),
 });
 export type CreateTicketInput = z.infer<typeof CreateTicketSchema>;
 
