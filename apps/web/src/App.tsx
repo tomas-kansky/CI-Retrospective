@@ -20,18 +20,22 @@ function getOrCreateUserSession(): UserSession {
   if (saved) {
     try {
       const parsed = JSON.parse(saved);
-      // Pokud má uživatel staré jméno typu "Kolega #...", vyměníme ho za vtipné zvíře ve stylu Google Docs
-      if (
-        parsed &&
-        (!parsed.name ||
+      if (parsed && typeof parsed === "object") {
+        if (parsed.isFacilitator === undefined) {
+          parsed.isFacilitator = true;
+        }
+        // Pokud má uživatel staré jméno typu "Kolega #...", vyměníme ho za vtipné zvíře ve stylu Google Docs
+        if (
+          !parsed.name ||
           parsed.name.startsWith("Kolega #") ||
           parsed.name.startsWith("Kolega#") ||
-          parsed.name === "Kolega")
-      ) {
-        parsed.name = getRandomAnonymousName();
+          parsed.name === "Kolega"
+        ) {
+          parsed.name = getRandomAnonymousName();
+        }
         localStorage.setItem("ci_retro_user", JSON.stringify(parsed));
+        return parsed;
       }
-      return parsed;
     } catch {}
   }
 

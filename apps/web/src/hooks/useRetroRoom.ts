@@ -37,7 +37,7 @@ export function useRetroRoom({ roomId, user }: UseRetroRoomOptions) {
       roomId
     )}&userId=${encodeURIComponent(user.id)}&userName=${encodeURIComponent(
       user.name
-    )}&avatarColor=${encodeURIComponent(user.avatarColor)}&isFacilitator=${user.isFacilitator}`;
+    )}&avatarColor=${encodeURIComponent(user.avatarColor)}&isFacilitator=${user.isFacilitator !== false}`;
 
     const ws = new WebSocket(wsUrl);
     socketRef.current = ws;

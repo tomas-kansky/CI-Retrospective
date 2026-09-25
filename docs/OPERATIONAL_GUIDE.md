@@ -34,6 +34,8 @@ Každý agent by měl projít tímto kontrolním seznamem:
 - **Hibernace uspává paměť**: Cloudflare DO se při nečinnosti uspí. Kdykoliv přijde zpráva (`webSocketMessage`), zkontroluj `if (!this.state)`, a pokud je `null`, načti stav přes `await this.ensureStateLoaded(targetRoomId)`.
 - **Nezavírej ostatní aktivní sockety**: Nikdy nevolej `s.close()` plošně na všechna spojení (např. při pročišťování). Živé klienty by to odpojilo a vyvolalo by to 2sekundový reconnect spinner. Pročišťuj pouze spojení s `readyState !== 1` nebo neaktivní déle než časový limit (`lastSeen`).
 - **Příloha socketu (`SocketAttachment`)**: Veškerá metadata o klientovi (`userId`, `name`, `avatarColor`, `lastSeen`) ukládej do `ws.serializeAttachment()`.
+- **Perzistence mazání v D1 (`flushToD1`)**: Při smazání karty (`DELETE_CARD`) nebo hlasu je nutné záznam okamžitě odstranit z D1 (`db.delete()`) a ve `flushToD1()` zkontrolovat a smazat všechny v paměti neexistující karty/hlasy/úkoly. Jinak po uspání DO a probuzení (`ensureStateLoaded`) načte D1 smazané karty zpět!
+- **Garantovaný flush před uspáním**: Při odpojení posledního klienta (`webSocketClose`) se volá `this.ctx.waitUntil(this.flushToD1())`, aby DO neusnul dříve, než proběhne debounced zápis.
 
 ### 2.2 Bezpečný Server-Side Blur (Maskování)
 - V `BRAINSTORMING` fázi jsou myšlenky maskované. Maskování **musí probíhat na serveru** v `RetroRoom.sendStateToSocket()`.

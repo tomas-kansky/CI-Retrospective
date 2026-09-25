@@ -164,7 +164,8 @@ export class RetroRoom extends DurableObject<Env> {
       const userId = url.searchParams.get("userId") || crypto.randomUUID();
       const userName = url.searchParams.get("userName") || "Anonym";
       const avatarColor = url.searchParams.get("avatarColor") || "#6366f1";
-      const isFacilitator = url.searchParams.get("isFacilitator") === "true";
+      const isFacilitatorParam = url.searchParams.get("isFacilitator");
+      const isFacilitator = isFacilitatorParam !== "false";
 
       const pair = new WebSocketPair();
       const [client, server] = Object.values(pair);
@@ -337,6 +338,16 @@ export class RetroRoom extends DurableObject<Env> {
           this.state.votes = this.state.votes.filter((v) => v.cardId !== deletedId);
 
           this.broadcastState();
+
+          // Okamžité vymazání z D1 (zabrání znovuoživení po probuzení z hibernace)
+          try {
+            const db = createDb(this.env.DB);
+            await db.delete(votes).where(eq(votes.cardId, deletedId));
+            await db.delete(cards).where(eq(cards.id, deletedId));
+          } catch (d1Err) {
+            console.error(`Chyba při okamžitém mazání karty ${deletedId} z D1:`, d1Err);
+          }
+
           this.scheduleD1Flush();
           break;
         }
@@ -432,8 +443,17 @@ export class RetroRoom extends DurableObject<Env> {
           );
 
           if (voteIndex !== -1) {
+            const removedVote = this.state.votes[voteIndex];
             this.state.votes.splice(voteIndex, 1);
             this.broadcastState();
+
+            try {
+              const db = createDb(this.env.DB);
+              await db.delete(votes).where(eq(votes.id, removedVote.id));
+            } catch (err) {
+              console.error("Chyba při okamžitém mazání hlasu z D1:", err);
+            }
+
             this.scheduleD1Flush();
           }
           break;
@@ -554,6 +574,11 @@ export class RetroRoom extends DurableObject<Env> {
    */
   async webSocketClose(ws: WebSocket, code: number, reason: string, wasClean: boolean) {
     this.broadcastPresence();
+    const remaining = this.ctx.getWebSockets().filter((s) => s !== ws && s.readyState === 1);
+    if (remaining.length === 0) {
+      // Poslední klient se odpojil - okamžitě uložíme stav do D1, než DO usne
+      this.ctx.waitUntil(this.flushToD1());
+    }
   }
 
   /**
@@ -693,8 +718,8 @@ export class RetroRoom extends DurableObject<Env> {
     }
 
     this.persistTimeout = setTimeout(async () => {
-      await this.flushToD1();
-    }, 5000); // Flush do D1 po 5 sekundách klidu
+      this.ctx.waitUntil(this.flushToD1());
+    }, 2000);
   }
 
   /**
@@ -704,8 +729,8 @@ export class RetroRoom extends DurableObject<Env> {
     if (!this.state) return;
 
     try {
+      await ensureTablesExist(this.env.DB);
       const db = createDb(this.env.DB);
-      const now = new Date().toISOString();
 
       // 1. Update základních metadat retrospektivy
       await db
@@ -719,33 +744,99 @@ export class RetroRoom extends DurableObject<Env> {
         .where(eq(retrospectives.id, this.state.id));
 
       // 2. Synchronizace karet a hlasů
-      // Pro jednoduchost a konzistenci přepíšeme karty aktuálního stavu
-      for (const card of this.state.cards) {
-        await db
-          .insert(cards)
-          .values({
-            id: card.id,
-            columnId: card.columnId,
-            parentCardId: card.parentCardId,
-            authorSessionId: card.authorSessionId,
-            authorName: card.authorName,
-            content: card.content,
-            color: card.color,
-            sortOrder: card.sortOrder,
-            createdAt: card.createdAt,
-          })
-          .onConflictDoUpdate({
-            target: cards.id,
-            set: {
+      const columnIds = this.state.columns.map((c) => c.id);
+
+      if (columnIds.length > 0) {
+        // A. Získáme všechny karty, které jsou aktuálně v D1 pro tuto retro
+        const dbCards = await db.select().from(cards);
+        const retroDbCards = dbCards.filter((c) => columnIds.includes(c.columnId));
+        const currentCardIds = new Set(this.state.cards.map((c) => c.id));
+
+        // B. Smažeme z D1 všechny karty (a jejich hlasy), které byly smazány v aplikaci
+        const cardsToDelete = retroDbCards.filter((c) => !currentCardIds.has(c.id));
+        for (const cardToDelete of cardsToDelete) {
+          try {
+            await db.delete(votes).where(eq(votes.cardId, cardToDelete.id));
+            await db.delete(cards).where(eq(cards.id, cardToDelete.id));
+          } catch (e) {
+            console.error(`Chyba při mazání karty ${cardToDelete.id} z D1:`, e);
+          }
+        }
+
+        // C. Uložíme / aktualizujeme aktuální karty
+        for (const card of this.state.cards) {
+          await db
+            .insert(cards)
+            .values({
+              id: card.id,
               columnId: card.columnId,
               parentCardId: card.parentCardId,
+              authorSessionId: card.authorSessionId,
+              authorName: card.authorName,
               content: card.content,
+              color: card.color,
               sortOrder: card.sortOrder,
-            },
-          });
+              createdAt: card.createdAt,
+            })
+            .onConflictDoUpdate({
+              target: cards.id,
+              set: {
+                columnId: card.columnId,
+                parentCardId: card.parentCardId,
+                content: card.content,
+                sortOrder: card.sortOrder,
+              },
+            });
+        }
+
+        // D. Synchronizace hlasů
+        const retroCardIds = new Set(this.state.cards.map((c) => c.id));
+        const dbVotes = await db.select().from(votes);
+        const retroDbVotes = dbVotes.filter((v) => retroCardIds.has(v.cardId));
+        const currentVoteIds = new Set(this.state.votes.map((v) => v.id));
+
+        // Smazat odebrané hlasy
+        const votesToDelete = retroDbVotes.filter((v) => !currentVoteIds.has(v.id));
+        for (const v of votesToDelete) {
+          try {
+            await db.delete(votes).where(eq(votes.id, v.id));
+          } catch (e) {
+            console.error(`Chyba při mazání hlasu ${v.id} z D1:`, e);
+          }
+        }
+
+        // Vložit nové hlasy
+        for (const vote of this.state.votes) {
+          await db
+            .insert(votes)
+            .values({
+              id: vote.id,
+              cardId: vote.cardId,
+              userSessionId: vote.userSessionId,
+              createdAt: vote.createdAt,
+            })
+            .onConflictDoNothing();
+        }
       }
 
       // 3. Synchronizace úkolů (Action items)
+      const dbActionItems = await db
+        .select()
+        .from(actionItems)
+        .where(eq(actionItems.retrospectiveId, this.state.id));
+      const currentActionItemIds = new Set(this.state.actionItems.map((a) => a.id));
+
+      // Smazat odebrané akční úkoly
+      const actionItemsToDelete = dbActionItems.filter((a) => !currentActionItemIds.has(a.id));
+      for (const item of actionItemsToDelete) {
+        try {
+          await db.delete(actionItems).where(eq(actionItems.id, item.id));
+        } catch (e) {
+          console.error(`Chyba při mazání akčního úkolu ${item.id} z D1:`, e);
+        }
+      }
+
+      // Vložit / aktualizovat aktuální úkoly
       for (const item of this.state.actionItems) {
         await db
           .insert(actionItems)
