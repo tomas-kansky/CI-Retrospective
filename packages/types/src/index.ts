@@ -197,6 +197,10 @@ export const ClientMessageSchema = z.discriminatedUnion("type", [
       isTyping: z.boolean(),
     }),
   }),
+  z.object({
+    type: z.literal("CLEANUP_PRESENCE"),
+    payload: z.object({}).optional(),
+  }),
 ]);
 export type ClientMessage = z.infer<typeof ClientMessageSchema>;
 

@@ -2,6 +2,7 @@ import React, { useState, useEffect } from "react";
 import { Sparkles, Moon, Sun, Plus, RefreshCw, Layers, CheckCircle2, ChevronRight, X, ArrowRight } from "lucide-react";
 import type { TemplateType, UserSession } from "@ci-retro/types";
 import { BoardView } from "./components/BoardView";
+import { getRandomAnonymousName } from "./utils/names";
 
 interface RetroItem {
   id: string;
@@ -12,22 +13,44 @@ interface RetroItem {
   createdAt: string;
 }
 
-// Inicializace nebo načtení uživatelského profilu ze sessionStorage
+// Inicializace nebo načtení uživatelského profilu ze sessionStorage/localStorage
 function getOrCreateUserSession(): UserSession {
   const saved = localStorage.getItem("ci_retro_user");
   if (saved) {
     try {
-      return JSON.parse(saved);
+      const parsed = JSON.parse(saved);
+      // Pokud má uživatel staré jméno typu "Kolega #...", vyměníme ho za vtipné zvíře ve stylu Google Docs
+      if (
+        parsed &&
+        (!parsed.name ||
+          parsed.name.startsWith("Kolega #") ||
+          parsed.name.startsWith("Kolega#") ||
+          parsed.name === "Kolega")
+      ) {
+        parsed.name = getRandomAnonymousName();
+        localStorage.setItem("ci_retro_user", JSON.stringify(parsed));
+      }
+      return parsed;
     } catch {}
   }
 
-  const colors = ["#6366f1", "#06b6d4", "#10b981", "#f59e0b", "#f43f5e", "#8b5cf6", "#ec4899"];
+  const colors = [
+    "#6366f1",
+    "#06b6d4",
+    "#10b981",
+    "#f59e0b",
+    "#f43f5e",
+    "#8b5cf6",
+    "#ec4899",
+    "#14b8a6",
+    "#f97316",
+    "#3b82f6",
+  ];
   const randomColor = colors[Math.floor(Math.random() * colors.length)];
-  const randomNum = Math.floor(100 + Math.random() * 900);
 
   const newUser: UserSession = {
     id: crypto.randomUUID(),
-    name: `Kolega #${randomNum}`,
+    name: getRandomAnonymousName(),
     avatarColor: randomColor,
     isAnonymous: false,
     isFacilitator: true, // Výchozí facilitátor pro lokální tvorbu
@@ -39,7 +62,7 @@ function getOrCreateUserSession(): UserSession {
 
 export const App: React.FC = () => {
   const [theme, setTheme] = useState<"dark" | "light">("dark");
-  const [currentUser] = useState<UserSession>(getOrCreateUserSession);
+  const [currentUser, setCurrentUser] = useState<UserSession>(getOrCreateUserSession);
   const [currentRoomId, setCurrentRoomId] = useState<string | null>(null);
 
   const [retros, setRetros] = useState<RetroItem[]>([]);
@@ -199,7 +222,15 @@ export const App: React.FC = () => {
           </div>
         </header>
 
-        <BoardView roomId={currentRoomId} user={currentUser} onBack={handleBackToDashboard} />
+        <BoardView
+          roomId={currentRoomId}
+          user={currentUser}
+          onBack={handleBackToDashboard}
+          onUpdateUser={(updated) => {
+            setCurrentUser(updated);
+            localStorage.setItem("ci_retro_user", JSON.stringify(updated));
+          }}
+        />
       </div>
     );
   }

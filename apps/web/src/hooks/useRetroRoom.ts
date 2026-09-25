@@ -327,6 +327,12 @@ export function useRetroRoom({ roomId, user }: UseRetroRoomOptions) {
     [sendMessage]
   );
 
+  const cleanupPresence = useCallback(() => {
+    sendMessage({
+      type: "CLEANUP_PRESENCE",
+    });
+  }, [sendMessage]);
+
   // Spočítat zbývající hlasy pro aktuálního uživatele
   const userVotesCount = state?.votes.filter((v) => v.userSessionId === user.id).length || 0;
   const remainingVotes = Math.max(0, (state?.maxVotesPerUser || 5) - userVotesCount);
@@ -353,5 +359,6 @@ export function useRetroRoom({ roomId, user }: UseRetroRoomOptions) {
     setTyping,
     addActionItem,
     updateActionItem,
+    cleanupPresence,
   };
 }

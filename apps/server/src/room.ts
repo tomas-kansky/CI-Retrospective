@@ -174,6 +174,16 @@ export class RetroRoom extends DurableObject<Env> {
         isFacilitator,
       };
 
+      // Uzavřeme jakákoliv předchozí otevřená spojení se stejným userId (zamezí zaseknutým duplikátům)
+      try {
+        const oldSockets = this.ctx.getWebSockets(userId);
+        for (const oldWs of oldSockets) {
+          try {
+            oldWs.close(1000, "Replaced by newer connection");
+          } catch {}
+        }
+      } catch {}
+
       this.ctx.acceptWebSocket(server, [userId]);
       server.serializeAttachment(attachment);
 
@@ -492,6 +502,21 @@ export class RetroRoom extends DurableObject<Env> {
           this.broadcastPresence();
           break;
         }
+
+        case "CLEANUP_PRESENCE": {
+          // Uzavřeme všechna ostatní spojení, čímž pročistíme zombie/zaseknutá spojení
+          // Živé prohlížeče se automaticky znovu připojí do 2 sekund
+          const sockets = this.ctx.getWebSockets();
+          for (const s of sockets) {
+            if (s !== ws) {
+              try {
+                s.close(4001, "Presence cleanup");
+              } catch {}
+            }
+          }
+          this.broadcastPresence();
+          break;
+        }
       }
     } catch (err: any) {
       this.sendError(ws, "Chyba při zpracování zprávy: " + err.message);
@@ -565,13 +590,22 @@ export class RetroRoom extends DurableObject<Env> {
    */
   private broadcastPresence() {
     const sockets = this.ctx.getWebSockets();
-    const users: UserSession[] = [];
+    const userMap = new Map<string, UserSession>();
     const typingUsers: Array<{ userId: string; columnId?: string }> = [];
 
     for (const ws of sockets) {
+      // Filtrujeme pouze aktivní otevřená spojení
+      if (ws.readyState !== 1) {
+        try {
+          ws.close();
+        } catch {}
+        continue;
+      }
+
       const att = ws.deserializeAttachment() as SocketAttachment;
-      if (att) {
-        users.push({
+      if (att && att.userId) {
+        // Deduplikace podle userId - každý uživatel se v seznamu objeví pouze jednou!
+        userMap.set(att.userId, {
           id: att.userId,
           name: att.name,
           avatarColor: att.avatarColor,
@@ -585,6 +619,7 @@ export class RetroRoom extends DurableObject<Env> {
       }
     }
 
+    const users = Array.from(userMap.values());
     const msg: ServerMessage = {
       type: "PRESENCE_UPDATE",
       payload: {
@@ -595,9 +630,11 @@ export class RetroRoom extends DurableObject<Env> {
 
     const payloadStr = JSON.stringify(msg);
     for (const ws of sockets) {
-      try {
-        ws.send(payloadStr);
-      } catch {}
+      if (ws.readyState === 1) {
+        try {
+          ws.send(payloadStr);
+        } catch {}
+      }
     }
   }
 

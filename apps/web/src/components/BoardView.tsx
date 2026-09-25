@@ -35,11 +35,14 @@ import {
   GripVertical,
   Layers,
   Unlink,
+  Sparkles,
+  RefreshCw,
 } from "lucide-react";
 import type { UserSession, RetroPhase, Card, Column } from "@ci-retro/types";
 import { useRetroRoom } from "../hooks/useRetroRoom";
 import { ExportModal } from "./ExportModal";
 import { ActionItemsDrawer } from "./ActionItemsDrawer";
+import { getRandomAnonymousName } from "../utils/names";
 
 // Draggable & Droppable Card Component
 interface DraggableCardProps {
@@ -293,9 +296,10 @@ interface BoardViewProps {
   roomId: string;
   user: UserSession;
   onBack: () => void;
+  onUpdateUser?: (updated: UserSession) => void;
 }
 
-export const BoardView: React.FC<BoardViewProps> = ({ roomId, user, onBack }) => {
+export const BoardView: React.FC<BoardViewProps> = ({ roomId, user, onBack, onUpdateUser }) => {
   const {
     state,
     onlineUsers,
@@ -316,6 +320,7 @@ export const BoardView: React.FC<BoardViewProps> = ({ roomId, user, onBack }) =>
     setTyping,
     addActionItem,
     updateActionItem,
+    cleanupPresence,
   } = useRetroRoom({ roomId, user });
 
   // Lokální stavy pro modály a formuláře
@@ -327,6 +332,42 @@ export const BoardView: React.FC<BoardViewProps> = ({ roomId, user, onBack }) =>
   // Stav pro seskupování a drag overlay
   const [activeCard, setActiveCard] = useState<Card | null>(null);
   const [collapsedGroupIds, setCollapsedGroupIds] = useState<Record<string, boolean>>({});
+
+  // Přítomnost a úprava jména
+  const [isPresenceMenuOpen, setIsPresenceMenuOpen] = useState(false);
+  const [customNameInput, setCustomNameInput] = useState(user.name);
+  const [presenceToast, setPresenceToast] = useState<string | null>(null);
+
+  // Synchronizace vstupního jména s user.name
+  useEffect(() => {
+    setCustomNameInput(user.name);
+  }, [user.name]);
+
+  // Deduplikace online uživatelů
+  const uniqueOnlineUsers = Array.from(
+    new Map(onlineUsers.map((u) => [u.id, u])).values()
+  );
+
+  const handleCleanupPresence = () => {
+    cleanupPresence();
+    setPresenceToast("Zaseknutí uživatelé byli promazáni.");
+    setTimeout(() => setPresenceToast(null), 3500);
+  };
+
+  const handleSaveName = (newName: string) => {
+    const trimmed = newName.trim();
+    if (!trimmed) return;
+    const updated = { ...user, name: trimmed };
+    if (onUpdateUser) onUpdateUser(updated);
+    setPresenceToast(`Vaše jméno bylo změněno na "${trimmed}"`);
+    setTimeout(() => setPresenceToast(null), 3000);
+  };
+
+  const handleRollRandomName = () => {
+    const rand = getRandomAnonymousName();
+    setCustomNameInput(rand);
+    handleSaveName(rand);
+  };
 
   // Modály
   const [isExportOpen, setIsExportOpen] = useState(false);
@@ -960,34 +1001,328 @@ export const BoardView: React.FC<BoardViewProps> = ({ roomId, user, onBack }) =>
               {copiedLink ? "Zkopírováno" : "Sdílet"}
             </button>
 
-            {/* Online Presence Avatars */}
-            <div style={{ display: "flex", alignItems: "center", marginLeft: "4px" }}>
-              {onlineUsers.map((u, i) => (
-                <div
-                  key={u.id + i}
-                  title={`${u.name} (Online)`}
-                  style={{
-                    width: "28px",
-                    height: "28px",
-                    borderRadius: "50%",
-                    background: u.avatarColor || "var(--accent-indigo)",
-                    color: "#fff",
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    fontSize: "0.75rem",
-                    fontWeight: 800,
-                    border: "2px solid var(--bg-secondary)",
-                    marginLeft: i > 0 ? "-8px" : "0",
-                    zIndex: 10 - i,
-                  }}
-                >
-                  {u.name.slice(0, 1).toUpperCase()}
+            {/* Online Presence Avatars & Dropdown Popover */}
+            <div style={{ position: "relative" }}>
+              <div
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "6px",
+                  padding: "4px 8px",
+                  borderRadius: "var(--radius-sm)",
+                  background: isPresenceMenuOpen ? "rgba(99, 102, 241, 0.15)" : "var(--bg-card)",
+                  border: isPresenceMenuOpen
+                    ? "1px solid var(--accent-indigo)"
+                    : "1px solid var(--border-color)",
+                  cursor: "pointer",
+                  transition: "all 0.15s ease",
+                }}
+                onClick={() => setIsPresenceMenuOpen(!isPresenceMenuOpen)}
+                title="Zobrazit přítomné kolegy a nastavení jména"
+              >
+                <div style={{ display: "flex", alignItems: "center" }}>
+                  {uniqueOnlineUsers.slice(0, 5).map((u, i) => (
+                    <div
+                      key={u.id}
+                      title={`${u.name} (Online)`}
+                      style={{
+                        width: "26px",
+                        height: "26px",
+                        borderRadius: "50%",
+                        background: u.avatarColor || "var(--accent-indigo)",
+                        color: "#fff",
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        fontSize: "0.72rem",
+                        fontWeight: 800,
+                        border: "2px solid var(--bg-secondary)",
+                        marginLeft: i > 0 ? "-8px" : "0",
+                        zIndex: 10 - i,
+                      }}
+                    >
+                      {u.name.slice(0, 1).toUpperCase()}
+                    </div>
+                  ))}
+                  {uniqueOnlineUsers.length > 5 && (
+                    <div
+                      style={{
+                        width: "24px",
+                        height: "24px",
+                        borderRadius: "50%",
+                        background: "var(--bg-secondary)",
+                        color: "var(--text-muted)",
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        fontSize: "0.68rem",
+                        fontWeight: 700,
+                        marginLeft: "-6px",
+                        border: "1px solid var(--border-color)",
+                      }}
+                    >
+                      +{uniqueOnlineUsers.length - 5}
+                    </div>
+                  )}
                 </div>
-              ))}
+
+                <span style={{ fontSize: "0.8rem", fontWeight: 600, color: "var(--text-muted)" }}>
+                  {uniqueOnlineUsers.length}
+                </span>
+                <ChevronDown size={14} color="var(--text-dim)" />
+              </div>
+
+              {/* Online Presence Dropdown Popover */}
+              {isPresenceMenuOpen && (
+                <div
+                  style={{
+                    position: "absolute",
+                    top: "calc(100% + 8px)",
+                    right: 0,
+                    width: "320px",
+                    background: "var(--bg-card)",
+                    border: "1px solid var(--border-color)",
+                    borderRadius: "var(--radius-md)",
+                    boxShadow: "0 10px 25px rgba(0, 0, 0, 0.4)",
+                    padding: "16px",
+                    zIndex: 1000,
+                    display: "flex",
+                    flexDirection: "column",
+                    gap: "14px",
+                  }}
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  {/* Header */}
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+                      <Users size={16} color="var(--accent-indigo)" />
+                      <span style={{ fontWeight: 700, fontSize: "0.9rem" }}>
+                        Kolegové online ({uniqueOnlineUsers.length})
+                      </span>
+                    </div>
+                    <button
+                      onClick={() => setIsPresenceMenuOpen(false)}
+                      style={{
+                        background: "transparent",
+                        border: "none",
+                        color: "var(--text-dim)",
+                        cursor: "pointer",
+                        padding: "2px",
+                      }}
+                    >
+                      ✕
+                    </button>
+                  </div>
+
+                  {/* List of online users */}
+                  <div
+                    style={{
+                      maxHeight: "140px",
+                      overflowY: "auto",
+                      display: "flex",
+                      flexDirection: "column",
+                      gap: "6px",
+                      paddingRight: "4px",
+                    }}
+                  >
+                    {uniqueOnlineUsers.map((u) => {
+                      const isMe = u.id === user.id;
+                      return (
+                        <div
+                          key={u.id}
+                          style={{
+                            display: "flex",
+                            alignItems: "center",
+                            justifyContent: "space-between",
+                            padding: "6px 8px",
+                            borderRadius: "var(--radius-sm)",
+                            background: isMe ? "rgba(99, 102, 241, 0.08)" : "rgba(255, 255, 255, 0.02)",
+                            border: isMe ? "1px solid rgba(99, 102, 241, 0.25)" : "1px solid transparent",
+                          }}
+                        >
+                          <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                            <div
+                              style={{
+                                width: "22px",
+                                height: "22px",
+                                borderRadius: "50%",
+                                background: u.avatarColor || "var(--accent-indigo)",
+                                color: "#fff",
+                                display: "flex",
+                                alignItems: "center",
+                                justifyContent: "center",
+                                fontSize: "0.68rem",
+                                fontWeight: 800,
+                              }}
+                            >
+                              {u.name.slice(0, 1).toUpperCase()}
+                            </div>
+                            <span
+                              style={{
+                                fontSize: "0.82rem",
+                                fontWeight: isMe ? 700 : 500,
+                                color: isMe ? "var(--accent-indigo)" : "var(--text-main)",
+                              }}
+                            >
+                              {u.name} {isMe ? "(Vy)" : ""}
+                            </span>
+                          </div>
+                          {u.isFacilitator && (
+                            <span
+                              style={{
+                                fontSize: "0.68rem",
+                                padding: "1px 6px",
+                                borderRadius: "var(--radius-full)",
+                                background: "rgba(99, 102, 241, 0.2)",
+                                color: "var(--accent-indigo)",
+                                fontWeight: 600,
+                              }}
+                            >
+                              Facilitátor
+                            </span>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+
+                  {/* Profile & Name change section */}
+                  <div
+                    style={{
+                      borderTop: "1px solid var(--border-color)",
+                      paddingTop: "12px",
+                      display: "flex",
+                      flexDirection: "column",
+                      gap: "8px",
+                    }}
+                  >
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                      <span style={{ fontSize: "0.78rem", color: "var(--text-muted)", fontWeight: 600 }}>
+                        Vaše jméno:
+                      </span>
+                      <button
+                        type="button"
+                        onClick={handleRollRandomName}
+                        title="Vygenerovat nové náhodné zvíře ve stylu Google Docs"
+                        style={{
+                          background: "transparent",
+                          border: "none",
+                          color: "var(--accent-cyan)",
+                          cursor: "pointer",
+                          fontSize: "0.75rem",
+                          display: "flex",
+                          alignItems: "center",
+                          gap: "4px",
+                          fontWeight: 600,
+                        }}
+                      >
+                        <Sparkles size={12} />
+                        <span>Náhodné zvíře</span>
+                      </button>
+                    </div>
+
+                    <div style={{ display: "flex", gap: "6px" }}>
+                      <input
+                        type="text"
+                        value={customNameInput}
+                        onChange={(e) => setCustomNameInput(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter") handleSaveName(customNameInput);
+                        }}
+                        placeholder="Napište jméno..."
+                        style={{
+                          flex: 1,
+                          padding: "6px 10px",
+                          borderRadius: "var(--radius-sm)",
+                          background: "var(--bg-secondary)",
+                          border: "1px solid var(--border-color)",
+                          color: "var(--text-main)",
+                          fontSize: "0.82rem",
+                        }}
+                      />
+                      <button
+                        type="button"
+                        onClick={() => handleSaveName(customNameInput)}
+                        style={{
+                          padding: "6px 10px",
+                          borderRadius: "var(--radius-sm)",
+                          background: "var(--accent-indigo)",
+                          color: "#fff",
+                          border: "none",
+                          fontSize: "0.8rem",
+                          fontWeight: 600,
+                          cursor: "pointer",
+                        }}
+                      >
+                        Uložit
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Clean up stuck sessions button */}
+                  <div style={{ borderTop: "1px solid var(--border-color)", paddingTop: "10px" }}>
+                    <button
+                      type="button"
+                      onClick={handleCleanupPresence}
+                      title="Odpojí zaseknuté/neaktivní relace ze starých oken či chyb"
+                      style={{
+                        width: "100%",
+                        padding: "8px 10px",
+                        borderRadius: "var(--radius-sm)",
+                        background: "rgba(244, 63, 94, 0.08)",
+                        border: "1px solid rgba(244, 63, 94, 0.25)",
+                        color: "var(--accent-rose)",
+                        fontSize: "0.78rem",
+                        fontWeight: 600,
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        gap: "6px",
+                        cursor: "pointer",
+                        transition: "background 0.15s ease",
+                      }}
+                    >
+                      <RefreshCw size={13} />
+                      <span>Promazat zaseknuté kolegy</span>
+                    </button>
+                    <span
+                      style={{
+                        display: "block",
+                        fontSize: "0.7rem",
+                        color: "var(--text-dim)",
+                        marginTop: "4px",
+                        textAlign: "center",
+                      }}
+                    >
+                      Odpojí zombie relace; aktivní kolegové se automaticky ihned obnoví.
+                    </span>
+                  </div>
+                </div>
+              )}
             </div>
           </div>
         </div>
+
+        {/* Presence notification toast */}
+        {presenceToast && (
+          <div
+            style={{
+              margin: "12px 24px 0",
+              padding: "8px 16px",
+              borderRadius: "var(--radius-sm)",
+              background: "rgba(16, 185, 129, 0.15)",
+              border: "1px solid var(--accent-emerald)",
+              color: "var(--accent-emerald)",
+              display: "flex",
+              alignItems: "center",
+              gap: "8px",
+              fontSize: "0.85rem",
+              fontWeight: 600,
+            }}
+          >
+            <Check size={16} /> {presenceToast}
+          </div>
+        )}
 
         {/* Error alert toast */}
         {lastError && (
