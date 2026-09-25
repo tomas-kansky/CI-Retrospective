@@ -25,6 +25,7 @@ interface SocketAttachment {
   avatarColor: string;
   isFacilitator: boolean;
   typingColumnId?: string;
+  lastSeen?: number;
 }
 
 export class RetroRoom extends DurableObject<Env> {
@@ -172,6 +173,7 @@ export class RetroRoom extends DurableObject<Env> {
         name: userName,
         avatarColor,
         isFacilitator,
+        lastSeen: Date.now(),
       };
 
       // Uzavřeme jakákoliv předchozí otevřená spojení se stejným userId (zamezí zaseknutým duplikátům)
@@ -240,6 +242,12 @@ export class RetroRoom extends DurableObject<Env> {
 
       const clientMsg = validation.data;
       const attachment = ws.deserializeAttachment() as SocketAttachment;
+
+      // Aktualizujeme čas poslední aktivity socketu
+      if (attachment) {
+        attachment.lastSeen = Date.now();
+        ws.serializeAttachment(attachment);
+      }
 
       // Pokud DO proběhl hibernací a stav není v paměti, načteme ho z D1/storage
       if (!this.state) {
@@ -504,15 +512,30 @@ export class RetroRoom extends DurableObject<Env> {
         }
 
         case "CLEANUP_PRESENCE": {
-          // Uzavřeme všechna ostatní spojení, čímž pročistíme zombie/zaseknutá spojení
-          // Živé prohlížeče se automaticky znovu připojí do 2 sekund
+          // Automatické/vyžádané pročištění: ukončíme pouze neaktivní zombie spojení (> 3.5 minuty)
+          // a uzavřená spojení, aniž bychom odpojovali živé účastníky
           const sockets = this.ctx.getWebSockets();
+          const now = Date.now();
+          const INACTIVITY_TIMEOUT_MS = 3.5 * 60 * 1000;
+
           for (const s of sockets) {
-            if (s !== ws) {
+            if (s === ws) continue;
+
+            if (s.readyState !== 1) {
               try {
-                s.close(4001, "Presence cleanup");
+                s.close();
               } catch {}
+              continue;
             }
+
+            try {
+              const att = s.deserializeAttachment() as SocketAttachment;
+              if (att && att.lastSeen && now - att.lastSeen > INACTIVITY_TIMEOUT_MS) {
+                try {
+                  s.close(4000, "Presence cleanup: Inactivity timeout");
+                } catch {}
+              }
+            } catch {}
           }
           this.broadcastPresence();
           break;
@@ -592,6 +615,8 @@ export class RetroRoom extends DurableObject<Env> {
     const sockets = this.ctx.getWebSockets();
     const userMap = new Map<string, UserSession>();
     const typingUsers: Array<{ userId: string; columnId?: string }> = [];
+    const now = Date.now();
+    const INACTIVITY_TIMEOUT_MS = 3.5 * 60 * 1000;
 
     for (const ws of sockets) {
       // Filtrujeme pouze aktivní otevřená spojení
@@ -604,6 +629,14 @@ export class RetroRoom extends DurableObject<Env> {
 
       const att = ws.deserializeAttachment() as SocketAttachment;
       if (att && att.userId) {
+        // Kontrola nečinnosti: pokud je spojení neaktivní déle než časový limit, uzavřeme ho a vynecháme
+        if (att.lastSeen && now - att.lastSeen > INACTIVITY_TIMEOUT_MS) {
+          try {
+            ws.close(4000, "Presence cleanup: Inactivity timeout");
+          } catch {}
+          continue;
+        }
+
         // Deduplikace podle userId - každý uživatel se v seznamu objeví pouze jednou!
         userMap.set(att.userId, {
           id: att.userId,

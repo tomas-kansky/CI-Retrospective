@@ -36,7 +36,6 @@ import {
   Layers,
   Unlink,
   Sparkles,
-  RefreshCw,
 } from "lucide-react";
 import type { UserSession, RetroPhase, Card, Column } from "@ci-retro/types";
 import { useRetroRoom } from "../hooks/useRetroRoom";
@@ -320,7 +319,6 @@ export const BoardView: React.FC<BoardViewProps> = ({ roomId, user, onBack, onUp
     setTyping,
     addActionItem,
     updateActionItem,
-    cleanupPresence,
   } = useRetroRoom({ roomId, user });
 
   // Lokální stavy pro modály a formuláře
@@ -348,11 +346,6 @@ export const BoardView: React.FC<BoardViewProps> = ({ roomId, user, onBack, onUp
     new Map(onlineUsers.map((u) => [u.id, u])).values()
   );
 
-  const handleCleanupPresence = () => {
-    cleanupPresence();
-    setPresenceToast("Zaseknutí uživatelé byli promazáni.");
-    setTimeout(() => setPresenceToast(null), 3500);
-  };
 
   const handleSaveName = (newName: string) => {
     const trimmed = newName.trim();
@@ -1257,45 +1250,6 @@ export const BoardView: React.FC<BoardViewProps> = ({ roomId, user, onBack, onUp
                         Uložit
                       </button>
                     </div>
-                  </div>
-
-                  {/* Clean up stuck sessions button */}
-                  <div style={{ borderTop: "1px solid var(--border-color)", paddingTop: "10px" }}>
-                    <button
-                      type="button"
-                      onClick={handleCleanupPresence}
-                      title="Odpojí zaseknuté/neaktivní relace ze starých oken či chyb"
-                      style={{
-                        width: "100%",
-                        padding: "8px 10px",
-                        borderRadius: "var(--radius-sm)",
-                        background: "rgba(244, 63, 94, 0.08)",
-                        border: "1px solid rgba(244, 63, 94, 0.25)",
-                        color: "var(--accent-rose)",
-                        fontSize: "0.78rem",
-                        fontWeight: 600,
-                        display: "flex",
-                        alignItems: "center",
-                        justifyContent: "center",
-                        gap: "6px",
-                        cursor: "pointer",
-                        transition: "background 0.15s ease",
-                      }}
-                    >
-                      <RefreshCw size={13} />
-                      <span>Promazat zaseknuté kolegy</span>
-                    </button>
-                    <span
-                      style={{
-                        display: "block",
-                        fontSize: "0.7rem",
-                        color: "var(--text-dim)",
-                        marginTop: "4px",
-                        textAlign: "center",
-                      }}
-                    >
-                      Odpojí zombie relace; aktivní kolegové se automaticky ihned obnoví.
-                    </span>
                   </div>
                 </div>
               )}

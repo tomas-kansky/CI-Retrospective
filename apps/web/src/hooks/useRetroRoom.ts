@@ -333,6 +333,25 @@ export function useRetroRoom({ roomId, user }: UseRetroRoomOptions) {
     });
   }, [sendMessage]);
 
+  // Automatické obnovování přítomnosti / pročištění zaseknutých relací každé 3 minuty
+  useEffect(() => {
+    const interval = setInterval(() => {
+      cleanupPresence();
+    }, 3 * 60 * 1000);
+
+    const handleVisibility = () => {
+      if (document.visibilityState === "visible") {
+        cleanupPresence();
+      }
+    };
+    document.addEventListener("visibilitychange", handleVisibility);
+
+    return () => {
+      clearInterval(interval);
+      document.removeEventListener("visibilitychange", handleVisibility);
+    };
+  }, [cleanupPresence]);
+
   // Spočítat zbývající hlasy pro aktuálního uživatele
   const userVotesCount = state?.votes.filter((v) => v.userSessionId === user.id).length || 0;
   const remainingVotes = Math.max(0, (state?.maxVotesPerUser || 5) - userVotesCount);
