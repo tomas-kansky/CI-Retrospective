@@ -19,11 +19,12 @@ Každý agent by měl projít tímto kontrolním seznamem:
 3. **Respektuj Vanilla CSS design systém**: Nepoužívej Tailwind utility třídy. Používej zavedené CSS proměnné z `apps/web/src/index.css` (např. `var(--bg-card)`, `var(--accent-indigo)`, `var(--text-main)`).
 
 ### Před odevzdáním práce:
-1. **Typová kontrola**: Spusť `npm run typecheck --workspaces`. Nesmí projít žádná typová chyba.
-2. **Žádné browser testy**: Pokud tě o to uživatel explicitně nepožádal, **NESPOUŠTĚJ** browser subagenty ani nedělej screenshoty.
-3. **Commit ve formátu Conventional Commits**: `<type>: <popisek>` (např. `feat: add export to pdf`, `fix: timer sync on reconnect`).
-4. **Okamžitý push**: Spusť `git push origin main`.
-5. **Stručné předání uživateli**: Shrň provedené změny a ihned předej slovo.
+1. **Aktualizace dokumentace**: S každou implementací VŽDY vytvoř nebo aktualizuj dokumentaci v `docs/` (`docs/SYSTEM_OVERVIEW.md`, `docs/OPERATIONAL_GUIDE.md`), aby se budoucí agenti bez kontextu okamžitě zorientovali.
+2. **Typová kontrola**: Spusť `npm run typecheck --workspaces`. Nesmí projít žádná typová chyba.
+3. **Žádné browser testy**: Pokud tě o to uživatel explicitně nepožádal, **NESPOUŠTĚJ** browser subagenty ani nedělej screenshoty.
+4. **Commit ve formátu Conventional Commits**: `<type>: <popisek>` (např. `feat: add export to pdf`, `fix: timer sync on reconnect`).
+5. **Okamžitý push**: Spusť `git push origin main`.
+6. **Stručné předání uživateli**: Shrň provedené změny a ihned předej slovo.
 
 ---
 

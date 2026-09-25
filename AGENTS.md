@@ -53,6 +53,7 @@ Každý agent by měl při řešení úkolů postupovat podle těchto bodů:
 - **Styling**: Projekt používá **Vanilla CSS** s proměnnými v `apps/web/src/index.css`. Nepoužívej Tailwind utility třídy.
 
 ### 3. Před odevzdáním práce:
+- **Aktualizace dokumentace**: S KAŽDOU implementací či významnější změnou kódu VŽDY vytvoř nebo aktualizuj patřičnou dokumentaci v `docs/` (např. `docs/SYSTEM_OVERVIEW.md`, `docs/OPERATIONAL_GUIDE.md`), aby se budoucí agenti bez kontextu okamžitě zorientovali.
 - **Typová kontrola**: VŽDY spusť `npm run typecheck --workspaces`.
 - **Commit**: Dodrž formát `<type>: <popisek>`.
 - **Automatický push**: Ihned po commitu spusť `git push origin main`.
@@ -67,8 +68,10 @@ Každý agent by měl při řešení úkolů postupovat podle těchto bodů:
 - Jakmile je implementace či požadovaná úprava kódu/obsahu dokončena a uložena, **okamžitě předej výsledek uživateli** bez spouštění zbytečných ověřovacích browser subagentů.
 - Testování v prohlížeči či spouštění validačních subagentů prováděj **VÝHRADNĚ tehdy, pokud o to uživatel explicitně požádá**.
 
-### 2. Dokumentace a analýzy
+### 2. Povinná dokumentace s každou implementací (Mandatory Documentation)
+- **S každou implementací, novou funkcionalitou či významnější úpravou kódu MUSÍ být vytvořena nebo aktualizována patřičná dokumentace pro pozdější rychlou orientaci budoucích agentů.**
 - Veškeré analýzy, specifikace, architektonické návrhy a související dokumenty ukládej do složky `docs/` v kořeni projektu.
+- Pokud přidáváš nové API endpointy, WebSocket zprávy, komponenty nebo tabulky v databázi, VŽDY aktualizuj i [docs/SYSTEM_OVERVIEW.md](docs/SYSTEM_OVERVIEW.md) a [docs/OPERATIONAL_GUIDE.md](docs/OPERATIONAL_GUIDE.md), aby dokumentace zůstávala stále živá a přesná.
 
 ### 3. Formátování Git commitů (Conventional Commits)
 - Každá commit zpráva MUSÍ striktně dodržovat formát: `<type>: <popisek>`
