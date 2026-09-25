@@ -189,7 +189,7 @@ Cíl: Automatizace firemních workflow, integrace do stávajících komunikačn�
 * **Akceptační kritéria**:
   * Všichni připojení účastníci ve stejný okamžik uvidí barevné konfety při úspěšném zakončení retro.
 
-### Task 7.4: Vizuální seskupování karet (Card Stacking / Grouping UI)
+### Task 7.4: Vizuální seskupování karet (Card Stacking / Grouping UI) ✅ HOTOVO
 * **Návrh implementace**:
   * Propojení existujícího datového pole `parentCardId` v D1 i Durable Objectu s novou UI interakcí.
   * Detekce přetažení karty na jinou kartu (drop target = karta).

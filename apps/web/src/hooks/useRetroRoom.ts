@@ -240,7 +240,11 @@ export function useRetroRoom({ roomId, user }: UseRetroRoomOptions) {
         return {
           ...prev,
           cards: prev.cards.map((c) =>
-            c.id === cardId ? { ...c, columnId: targetColumnId, sortOrder: newSortOrder } : c
+            c.id === cardId
+              ? { ...c, columnId: targetColumnId, sortOrder: newSortOrder, parentCardId: null }
+              : c.parentCardId === cardId
+              ? { ...c, columnId: targetColumnId }
+              : c
           ),
         };
       });
@@ -248,6 +252,56 @@ export function useRetroRoom({ roomId, user }: UseRetroRoomOptions) {
       sendMessage({
         type: "MOVE_CARD",
         payload: { cardId, targetColumnId, newSortOrder },
+      });
+    },
+    [sendMessage]
+  );
+
+  const groupCards = useCallback(
+    (sourceCardId: string, targetCardId: string) => {
+      // Optimistická lokální aktualizace sloučení karet
+      setState((prev) => {
+        if (!prev) return null;
+        const target = prev.cards.find((c) => c.id === targetCardId);
+        const source = prev.cards.find((c) => c.id === sourceCardId);
+        if (!target || !source || source.id === target.id) return prev;
+
+        const rootTargetId = target.parentCardId || target.id;
+        if (source.id === rootTargetId) return prev;
+
+        return {
+          ...prev,
+          cards: prev.cards.map((c) => {
+            if (c.id === sourceCardId || c.parentCardId === sourceCardId) {
+              return { ...c, parentCardId: rootTargetId, columnId: target.columnId };
+            }
+            return c;
+          }),
+        };
+      });
+
+      sendMessage({
+        type: "GROUP_CARDS",
+        payload: { sourceCardId, targetCardId },
+      });
+    },
+    [sendMessage]
+  );
+
+  const ungroupCard = useCallback(
+    (cardId: string) => {
+      // Optimistické oddělení karty ze skupiny
+      setState((prev) => {
+        if (!prev) return null;
+        return {
+          ...prev,
+          cards: prev.cards.map((c) => (c.id === cardId ? { ...c, parentCardId: null } : c)),
+        };
+      });
+
+      sendMessage({
+        type: "UNGROUP_CARD",
+        payload: { cardId },
       });
     },
     [sendMessage]
@@ -289,6 +343,8 @@ export function useRetroRoom({ roomId, user }: UseRetroRoomOptions) {
     updateCard,
     deleteCard,
     moveCard,
+    groupCards,
+    ungroupCard,
     castVote,
     removeVote,
     setPhase,

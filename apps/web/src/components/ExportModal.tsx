@@ -22,18 +22,34 @@ export const ExportModal: React.FC<ExportModalProps> = ({ state, onClose }) => {
 
     state.columns.forEach((col) => {
       const colCards = state.cards.filter((c) => c.columnId === col.id);
+      const rootCards = colCards.filter(
+        (c) => !c.parentCardId || !state.cards.some((p) => p.id === c.parentCardId)
+      );
+
       // Seřadíme podle hlasů sestupně
-      colCards.sort((a, b) => getCardVotesCount(b.id) - getCardVotesCount(a.id));
+      rootCards.sort((a, b) => getCardVotesCount(b.id) - getCardVotesCount(a.id));
 
       md += `## ${col.title} (${colCards.length})\n`;
-      if (colCards.length === 0) {
+      if (rootCards.length === 0) {
         md += `*(žádné záznamy)*\n\n`;
       } else {
-        colCards.forEach((c) => {
+        rootCards.forEach((c) => {
           const votes = getCardVotesCount(c.id);
           const votesBadge = votes > 0 ? ` (+${votes} hlasů)` : "";
           const author = c.authorName ? ` [${c.authorName}]` : "";
-          md += `- ${c.content}${votesBadge}${author}\n`;
+          const children = colCards.filter((child) => child.parentCardId === c.id);
+
+          if (children.length > 0) {
+            md += `- **[Skupina]** ${c.content}${votesBadge}${author}\n`;
+            children.forEach((child) => {
+              const childVotes = getCardVotesCount(child.id);
+              const childVotesBadge = childVotes > 0 ? ` (+${childVotes} hlasů)` : "";
+              const childAuthor = child.authorName ? ` [${child.authorName}]` : "";
+              md += `  - ↳ ${child.content}${childVotesBadge}${childAuthor}\n`;
+            });
+          } else {
+            md += `- ${c.content}${votesBadge}${author}\n`;
+          }
         });
         md += `\n`;
       }
@@ -64,7 +80,9 @@ export const ExportModal: React.FC<ExportModalProps> = ({ state, onClose }) => {
     state.columns.forEach((col) => {
       const colCards = state.cards.filter((c) => c.columnId === col.id);
       colCards.forEach((c) => {
-        const cleanContent = `"${c.content.replace(/"/g, '""')}"`;
+        const isChild = !!c.parentCardId;
+        const prefix = isChild ? "[Podkarta] " : "";
+        const cleanContent = `"${(prefix + c.content).replace(/"/g, '""')}"`;
         const votes = getCardVotesCount(c.id);
         csv += `"${col.title}",${cleanContent},${votes},"${c.authorName}","${c.createdAt}"\n`;
       });

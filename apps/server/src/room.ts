@@ -303,9 +303,17 @@ export class RetroRoom extends DurableObject<Env> {
             return;
           }
 
+          const deletedId = card.id;
+          // Pokud měla karta seskupené podkarty, uvolníme je, aby nezmizely
+          this.state.cards.forEach((c) => {
+            if (c.parentCardId === deletedId) {
+              c.parentCardId = null;
+            }
+          });
+
           // Odstraníme kartu a její hlasy
           this.state.cards.splice(cardIndex, 1);
-          this.state.votes = this.state.votes.filter((v) => v.cardId !== clientMsg.payload.cardId);
+          this.state.votes = this.state.votes.filter((v) => v.cardId !== deletedId);
 
           this.broadcastState();
           this.scheduleD1Flush();
@@ -315,8 +323,20 @@ export class RetroRoom extends DurableObject<Env> {
         case "MOVE_CARD": {
           const card = this.state.cards.find((c) => c.id === clientMsg.payload.cardId);
           if (card) {
+            // Pokud byla karta podkartou a je přesunuta do jiného sloupce, oddělí se ze skupiny
+            if (card.parentCardId && card.columnId !== clientMsg.payload.targetColumnId) {
+              card.parentCardId = null;
+            }
             card.columnId = clientMsg.payload.targetColumnId;
             card.sortOrder = clientMsg.payload.newSortOrder;
+
+            // Pokud má karta podřízené karty, přesuneme je do stejného sloupce
+            this.state.cards.forEach((c) => {
+              if (c.parentCardId === card.id) {
+                c.columnId = clientMsg.payload.targetColumnId;
+              }
+            });
+
             this.broadcastState();
             this.scheduleD1Flush();
           }
@@ -326,10 +346,25 @@ export class RetroRoom extends DurableObject<Env> {
         case "GROUP_CARDS": {
           // Sloučení jedné karty pod druhou (seskupení myšlenek)
           const source = this.state.cards.find((c) => c.id === clientMsg.payload.sourceCardId);
-          if (source && source.id !== clientMsg.payload.targetCardId) {
-            source.parentCardId = clientMsg.payload.targetCardId;
-            this.broadcastState();
-            this.scheduleD1Flush();
+          const target = this.state.cards.find((c) => c.id === clientMsg.payload.targetCardId);
+          if (source && target && source.id !== target.id) {
+            // Pokud je cílová karta už sama podkartou, spojíme se s její hlavní mateřskou kartou
+            const rootTargetId = target.parentCardId || target.id;
+            if (source.id !== rootTargetId) {
+              source.parentCardId = rootTargetId;
+              source.columnId = target.columnId;
+
+              // Pokud měl zdroj potomky, přesuneme je do stejné mateřské skupiny
+              this.state.cards.forEach((c) => {
+                if (c.parentCardId === source.id) {
+                  c.parentCardId = rootTargetId;
+                  c.columnId = target.columnId;
+                }
+              });
+
+              this.broadcastState();
+              this.scheduleD1Flush();
+            }
           }
           break;
         }

@@ -7,12 +7,18 @@ import {
   useSensors,
   PointerSensor,
   type DragEndEvent,
+  type DragStartEvent,
+  DragOverlay,
+  pointerWithin,
+  rectIntersection,
+  type CollisionDetection,
 } from "@dnd-kit/core";
 import {
   ArrowLeft,
   Share2,
   Clock,
   ChevronDown,
+  ChevronUp,
   Eye,
   EyeOff,
   ThumbsUp,
@@ -27,19 +33,25 @@ import {
   FileDown,
   Target,
   GripVertical,
+  Layers,
+  Unlink,
 } from "lucide-react";
 import type { UserSession, RetroPhase, Card, Column } from "@ci-retro/types";
 import { useRetroRoom } from "../hooks/useRetroRoom";
 import { ExportModal } from "./ExportModal";
 import { ActionItemsDrawer } from "./ActionItemsDrawer";
 
-// Draggable Card Component
+// Draggable & Droppable Card Component
 interface DraggableCardProps {
   card: Card;
   votesCount: number;
   isVoted: boolean;
   onVote: () => void;
   onDelete: () => void;
+  isMasked?: boolean;
+  isChild?: boolean;
+  onUngroup?: () => void;
+  activeDragCardId?: string | null;
 }
 
 const DraggableCard: React.FC<DraggableCardProps> = ({
@@ -48,43 +60,89 @@ const DraggableCard: React.FC<DraggableCardProps> = ({
   isVoted,
   onVote,
   onDelete,
+  isMasked = false,
+  isChild = false,
+  onUngroup,
+  activeDragCardId,
 }) => {
-  const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({
-    id: card.id,
-    data: { card },
+  const { attributes, listeners, setNodeRef: setDraggableRef, isDragging } = useDraggable({
+    id: `drag-${card.id}`,
+    data: { type: "CARD", card },
   });
 
-  const style: React.CSSProperties = {
-    transform: transform ? `translate3d(${transform.x}px, ${transform.y}px, 0)` : undefined,
-    opacity: isDragging ? 0.4 : 1,
-    zIndex: isDragging ? 999 : 1,
-  };
+  const { setNodeRef: setDroppableRef, isOver } = useDroppable({
+    id: `drop-${card.id}`,
+    data: { type: "CARD", card },
+  });
 
-  const isMasked = card.content === "••••••••••••";
+  const setNodeRef = React.useCallback(
+    (node: HTMLElement | null) => {
+      setDraggableRef(node);
+      setDroppableRef(node);
+    },
+    [setDraggableRef, setDroppableRef]
+  );
+
+  // Zda je nad touto kartou tažena jiná karta pro spojení
+  const isDropTargetActive = isOver && !!activeDragCardId && activeDragCardId !== card.id;
 
   return (
     <div
       ref={setNodeRef}
       style={{
-        ...style,
-        padding: "12px 14px",
+        padding: isChild ? "10px 12px" : "12px 14px",
         borderRadius: "var(--radius-sm)",
-        background: "var(--bg-secondary)",
-        border: "1px solid var(--border-color)",
+        background: isDropTargetActive
+          ? "rgba(99, 102, 241, 0.16)"
+          : isChild
+          ? "rgba(255, 255, 255, 0.03)"
+          : "var(--bg-secondary)",
+        border: isDropTargetActive
+          ? "2px dashed var(--accent-indigo)"
+          : isChild
+          ? "1px solid rgba(255, 255, 255, 0.08)"
+          : "1px solid var(--border-color)",
         display: "flex",
         flexDirection: "column",
-        gap: "10px",
-        boxShadow: "var(--shadow-sm)",
+        gap: "8px",
+        boxShadow: isDropTargetActive ? "0 0 16px rgba(99, 102, 241, 0.4)" : "var(--shadow-sm)",
         position: "relative",
         userSelect: "none",
+        opacity: isDragging ? 0.3 : 1,
+        transition: "border-color 0.15s ease, background 0.15s ease, box-shadow 0.15s ease",
       }}
     >
+      {/* Vizuální indikátor pro spojení karet při najetí myší */}
+      {isDropTargetActive && (
+        <div
+          style={{
+            position: "absolute",
+            inset: 0,
+            borderRadius: "inherit",
+            background: "rgba(99, 102, 241, 0.22)",
+            backdropFilter: "blur(2px)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            gap: "8px",
+            color: "var(--accent-indigo)",
+            fontWeight: 700,
+            fontSize: "0.85rem",
+            zIndex: 10,
+            pointerEvents: "none",
+          }}
+        >
+          <Layers size={16} />
+          <span>Pustit pro spojení myšlenek</span>
+        </div>
+      )}
+
       <div style={{ display: "flex", alignItems: "flex-start", gap: "6px" }}>
         {/* Drag handle */}
         <div
           {...attributes}
           {...listeners}
-          title="Přetáhnout kartu do jiného sloupce"
+          title="Přetáhnout kartu (na jinou kartu pro spojení, nebo do sloupce)"
           style={{
             cursor: "grab",
             color: "var(--text-dim)",
@@ -100,7 +158,7 @@ const DraggableCard: React.FC<DraggableCardProps> = ({
         <p
           style={{
             flex: 1,
-            fontSize: "0.92rem",
+            fontSize: isChild ? "0.88rem" : "0.92rem",
             lineHeight: "1.45",
             margin: 0,
             wordBreak: "break-word",
@@ -113,7 +171,7 @@ const DraggableCard: React.FC<DraggableCardProps> = ({
         </p>
       </div>
 
-      {/* Card Footer: Author + Vote + Delete */}
+      {/* Card Footer: Author + Actions */}
       <div
         style={{
           display: "flex",
@@ -127,7 +185,34 @@ const DraggableCard: React.FC<DraggableCardProps> = ({
           {card.authorName}
         </span>
 
-        <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+          {/* Oddělit ze skupiny (pouze u podkaret) */}
+          {isChild && onUngroup && (
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                onUngroup();
+              }}
+              title="Oddělit kartu ze skupiny"
+              style={{
+                background: "rgba(255, 255, 255, 0.05)",
+                border: "1px solid var(--border-color)",
+                color: "var(--text-muted)",
+                padding: "3px 6px",
+                borderRadius: "var(--radius-sm)",
+                display: "flex",
+                alignItems: "center",
+                gap: "4px",
+                fontSize: "0.72rem",
+                cursor: "pointer",
+                fontWeight: 500,
+              }}
+            >
+              <Unlink size={12} />
+              <span>Oddělit</span>
+            </button>
+          )}
+
           {/* Vote Button */}
           <button
             onClick={onVote}
@@ -143,6 +228,7 @@ const DraggableCard: React.FC<DraggableCardProps> = ({
               fontSize: "0.8rem",
               fontWeight: 700,
               border: "1px solid var(--border-color)",
+              cursor: "pointer",
             }}
           >
             <ThumbsUp size={13} />
@@ -157,6 +243,8 @@ const DraggableCard: React.FC<DraggableCardProps> = ({
               background: "transparent",
               color: "var(--text-dim)",
               padding: "4px",
+              border: "none",
+              cursor: "pointer",
             }}
           >
             <Trash2 size={14} />
@@ -176,7 +264,8 @@ interface DroppableColumnProps {
 
 const DroppableColumn: React.FC<DroppableColumnProps> = ({ column, children }) => {
   const { isOver, setNodeRef } = useDroppable({
-    id: column.id,
+    id: `col-${column.id}`,
+    data: { type: "COLUMN", column },
   });
 
   return (
@@ -217,6 +306,8 @@ export const BoardView: React.FC<BoardViewProps> = ({ roomId, user, onBack }) =>
     addCard,
     deleteCard,
     moveCard,
+    groupCards,
+    ungroupCard,
     castVote,
     removeVote,
     setPhase,
@@ -232,6 +323,10 @@ export const BoardView: React.FC<BoardViewProps> = ({ roomId, user, onBack }) =>
   const [newCardText, setNewCardText] = useState("");
   const [isAnonymous, setIsAnonymous] = useState(false);
   const [copiedLink, setCopiedLink] = useState(false);
+
+  // Stav pro seskupování a drag overlay
+  const [activeCard, setActiveCard] = useState<Card | null>(null);
+  const [collapsedGroupIds, setCollapsedGroupIds] = useState<Record<string, boolean>>({});
 
   // Modály
   const [isExportOpen, setIsExportOpen] = useState(false);
@@ -307,21 +402,99 @@ export const BoardView: React.FC<BoardViewProps> = ({ roomId, user, onBack }) =>
     setTyping(columnId, false);
   };
 
+  // Vlastní detekce kolizí: upřednostňuje karty před sloupcem pod nimi
+  const customCollisionDetection: CollisionDetection = (args) => {
+    const pointerCollisions = pointerWithin(args);
+    if (pointerCollisions.length > 0) {
+      // 1. Zkontrolujeme, zda je kurzor přímo nad nějakou kartou (která není ta aktuálně tažená)
+      const currentActiveId = args.active.id.toString().replace(/^drag-/, "");
+      const cardCollision = pointerCollisions.find(
+        (c) =>
+          c.data?.droppableContainer?.data?.current?.type === "CARD" &&
+          c.id !== `drop-${currentActiveId}`
+      );
+      if (cardCollision) {
+        return [cardCollision];
+      }
+
+      // 2. Jinak zkontrolujeme sloupec
+      const colCollision = pointerCollisions.find(
+        (c) => c.data?.droppableContainer?.data?.current?.type === "COLUMN"
+      );
+      if (colCollision) {
+        return [colCollision];
+      }
+      return pointerCollisions;
+    }
+
+    const rectCollisions = rectIntersection(args);
+    const currentActiveId = args.active.id.toString().replace(/^drag-/, "");
+    const cardRectCollision = rectCollisions.find(
+      (c) =>
+        c.data?.droppableContainer?.data?.current?.type === "CARD" &&
+        c.id !== `drop-${currentActiveId}`
+    );
+    if (cardRectCollision) {
+      return [cardRectCollision];
+    }
+
+    return rectCollisions;
+  };
+
+  const handleDragStart = (event: DragStartEvent) => {
+    const card = event.active.data?.current?.card as Card | undefined;
+    if (card) {
+      setActiveCard(card);
+    }
+  };
+
   // Drag & drop ukončení
   const handleDragEnd = (event: DragEndEvent) => {
+    setActiveCard(null);
     const { active, over } = event;
     if (!over || !state) return;
 
-    const cardId = active.id as string;
-    const targetColumnId = over.id as string;
-
-    const currentCard = state.cards.find((c) => c.id === cardId);
+    const draggedCard = active.data?.current?.card as Card | undefined;
+    const activeCardId = draggedCard?.id || (active.id as string).replace(/^drag-/, "");
+    const currentCard = state.cards.find((c) => c.id === activeCardId);
     if (!currentCard) return;
 
-    // Pokud byl přetažen do jiného sloupce
-    if (currentCard.columnId !== targetColumnId) {
-      const targetColumnCards = state.cards.filter((c) => c.columnId === targetColumnId);
-      moveCard(cardId, targetColumnId, targetColumnCards.length);
+    const overData = over.data?.current;
+
+    // 1. Přetažení přímo na jinou kartu -> sloučení myšlenek (GROUP_CARDS)
+    if (overData?.type === "CARD") {
+      const targetCard = overData.card as Card;
+      if (targetCard && targetCard.id !== currentCard.id) {
+        groupCards(currentCard.id, targetCard.id);
+        const rootTargetId = targetCard.parentCardId || targetCard.id;
+        setCollapsedGroupIds((prev) => ({ ...prev, [rootTargetId]: false }));
+        return;
+      }
+    }
+
+    // 2. Přetažení do sloupce
+    let targetColumnId: string | null = null;
+    if (overData?.type === "COLUMN") {
+      targetColumnId = (overData.column as Column).id;
+    } else if (typeof over.id === "string" && over.id.startsWith("col-")) {
+      targetColumnId = over.id.replace(/^col-/, "");
+    } else if (typeof over.id === "string") {
+      const foundCol = state.columns.find((c) => c.id === over.id);
+      if (foundCol) targetColumnId = foundCol.id;
+    }
+
+    if (targetColumnId) {
+      // Pokud byla karta podkartou a uživatel ji vyhodil do sloupce, oddělíme ji ze skupiny
+      if (currentCard.parentCardId) {
+        ungroupCard(currentCard.id);
+      }
+
+      if (currentCard.columnId !== targetColumnId || currentCard.parentCardId) {
+        const targetColumnCards = state.cards.filter(
+          (c) => c.columnId === targetColumnId && !c.parentCardId
+        );
+        moveCard(currentCard.id, targetColumnId, targetColumnCards.length);
+      }
     }
   };
 
@@ -367,6 +540,12 @@ export const BoardView: React.FC<BoardViewProps> = ({ roomId, user, onBack }) =>
     return state.votes.filter((v) => v.cardId === cardId).length;
   };
 
+  const getGroupTotalVotes = (rootCardId: string) => {
+    const childIds = state.cards.filter((c) => c.parentCardId === rootCardId).map((c) => c.id);
+    const allIds = [rootCardId, ...childIds];
+    return state.votes.filter((v) => allIds.includes(v.cardId)).length;
+  };
+
   const hasUserVotedOnCard = (cardId: string) => {
     return state.votes.some((v) => v.cardId === cardId && v.userSessionId === user.id);
   };
@@ -396,7 +575,12 @@ export const BoardView: React.FC<BoardViewProps> = ({ roomId, user, onBack }) =>
   };
 
   return (
-    <DndContext sensors={sensors} onDragEnd={handleDragEnd}>
+    <DndContext
+      sensors={sensors}
+      collisionDetection={customCollisionDetection}
+      onDragStart={handleDragStart}
+      onDragEnd={handleDragEnd}
+    >
       <div style={{ display: "flex", flexDirection: "column", height: "100%", flex: 1 }}>
         {/* Sub-header / Board Control Bar */}
         <div
@@ -839,16 +1023,21 @@ export const BoardView: React.FC<BoardViewProps> = ({ roomId, user, onBack }) =>
           }}
         >
           {state.columns.map((column) => {
-            const colCards = state.cards.filter((c) => c.columnId === column.id);
+            const colAllCards = state.cards.filter((c) => c.columnId === column.id);
             const isTypingInCol = typingUsers.some((t) => t.columnId === column.id);
 
-            // Pokud jsme ve fázi diskuze nebo hlasování, seřadíme karty podle obdržených hlasů sestupně!
+            // Kořenové karty (nejsou podřízené žádné jiné kartě)
+            const rootCards = colAllCards.filter(
+              (c) => !c.parentCardId || !state.cards.some((p) => p.id === c.parentCardId)
+            );
+
+            // Pokud jsme ve fázi diskuze nebo hlasování, seřadíme karty podle celkového počtu hlasů skupiny sestupně!
             if (state.phase === "VOTING" || state.phase === "DISCUSSION") {
-              colCards.sort((a, b) => getCardVotesCount(b.id) - getCardVotesCount(a.id));
+              rootCards.sort((a, b) => getGroupTotalVotes(b.id) - getGroupTotalVotes(a.id));
             }
 
             return (
-              <DroppableColumn key={column.id} column={column} cards={colCards}>
+              <DroppableColumn key={column.id} column={column} cards={colAllCards}>
                 {/* Column Header */}
                 <div
                   style={{
@@ -870,7 +1059,7 @@ export const BoardView: React.FC<BoardViewProps> = ({ roomId, user, onBack }) =>
                       fontWeight: 700,
                     }}
                   >
-                    {colCards.length}
+                    {colAllCards.length}
                   </span>
                 </div>
 
@@ -886,23 +1075,173 @@ export const BoardView: React.FC<BoardViewProps> = ({ roomId, user, onBack }) =>
                     minHeight: "160px",
                   }}
                 >
-                  {colCards.map((card) => {
-                    const votesCount = getCardVotesCount(card.id);
-                    const isVoted = hasUserVotedOnCard(card.id);
+                  {rootCards.map((rootCard) => {
+                    const childCards = colAllCards.filter((c) => c.parentCardId === rootCard.id);
+                    const isGroup = childCards.length > 0;
+                    const isCollapsed = !!collapsedGroupIds[rootCard.id];
+                    const groupVotes = getGroupTotalVotes(rootCard.id);
 
+                    if (isGroup) {
+                      return (
+                        <div
+                          key={rootCard.id}
+                          style={{
+                            display: "flex",
+                            flexDirection: "column",
+                            borderRadius: "var(--radius-sm)",
+                            border: "1px solid rgba(99, 102, 241, 0.25)",
+                            background: "rgba(99, 102, 241, 0.04)",
+                            padding: "8px",
+                            gap: "8px",
+                            boxShadow: isCollapsed
+                              ? "0 3px 0 0 rgba(99, 102, 241, 0.2), 0 6px 0 0 rgba(99, 102, 241, 0.1)"
+                              : undefined,
+                            transition: "box-shadow 0.2s ease",
+                          }}
+                        >
+                          {/* Group header bar */}
+                          <div
+                            style={{
+                              display: "flex",
+                              alignItems: "center",
+                              justifyContent: "space-between",
+                              padding: "2px 4px",
+                            }}
+                          >
+                            <div
+                              style={{
+                                display: "flex",
+                                alignItems: "center",
+                                gap: "6px",
+                                fontSize: "0.75rem",
+                                fontWeight: 700,
+                                color: "var(--accent-indigo)",
+                              }}
+                            >
+                              <Layers size={14} />
+                              <span>Skupina • {1 + childCards.length} myšlenky</span>
+                              {groupVotes > 0 && (
+                                <span
+                                  style={{
+                                    fontSize: "0.7rem",
+                                    padding: "1px 6px",
+                                    borderRadius: "var(--radius-full)",
+                                    background: "rgba(99, 102, 241, 0.2)",
+                                    color: "var(--accent-indigo)",
+                                    fontWeight: 700,
+                                  }}
+                                >
+                                  {groupVotes} hl. celkem
+                                </span>
+                              )}
+                            </div>
+
+                            <button
+                              onClick={() =>
+                                setCollapsedGroupIds((prev) => ({
+                                  ...prev,
+                                  [rootCard.id]: !prev[rootCard.id],
+                                }))
+                              }
+                              title={isCollapsed ? "Rozbalit skupinu" : "Sbalit skupinu"}
+                              style={{
+                                background: "transparent",
+                                border: "none",
+                                color: "var(--text-muted)",
+                                cursor: "pointer",
+                                display: "flex",
+                                alignItems: "center",
+                                gap: "4px",
+                                fontSize: "0.75rem",
+                                padding: "2px 6px",
+                                borderRadius: "var(--radius-sm)",
+                              }}
+                            >
+                              {isCollapsed ? (
+                                <>
+                                  <span>+{childCards.length} další</span>
+                                  <ChevronDown size={14} />
+                                </>
+                              ) : (
+                                <>
+                                  <span>Sbalit</span>
+                                  <ChevronUp size={14} />
+                                </>
+                              )}
+                            </button>
+                          </div>
+
+                          {/* Hlavní karta skupiny */}
+                          <DraggableCard
+                            card={rootCard}
+                            votesCount={getCardVotesCount(rootCard.id)}
+                            isVoted={hasUserVotedOnCard(rootCard.id)}
+                            onVote={() =>
+                              hasUserVotedOnCard(rootCard.id)
+                                ? removeVote(rootCard.id)
+                                : castVote(rootCard.id)
+                            }
+                            onDelete={() => deleteCard(rootCard.id)}
+                            isMasked={rootCard.content === "••••••••••••"}
+                            activeDragCardId={activeCard?.id || null}
+                          />
+
+                          {/* Podkarty skupiny (pokud není sbaleno) */}
+                          {!isCollapsed && (
+                            <div
+                              style={{
+                                display: "flex",
+                                flexDirection: "column",
+                                gap: "8px",
+                                paddingLeft: "12px",
+                                borderLeft: "2px solid rgba(99, 102, 241, 0.35)",
+                                marginLeft: "6px",
+                              }}
+                            >
+                              {childCards.map((child) => (
+                                <DraggableCard
+                                  key={child.id}
+                                  card={child}
+                                  votesCount={getCardVotesCount(child.id)}
+                                  isVoted={hasUserVotedOnCard(child.id)}
+                                  onVote={() =>
+                                    hasUserVotedOnCard(child.id)
+                                      ? removeVote(child.id)
+                                      : castVote(child.id)
+                                  }
+                                  onDelete={() => deleteCard(child.id)}
+                                  isMasked={child.content === "••••••••••••"}
+                                  isChild={true}
+                                  onUngroup={() => ungroupCard(child.id)}
+                                  activeDragCardId={activeCard?.id || null}
+                                />
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      );
+                    }
+
+                    // Samostatná karta
                     return (
                       <DraggableCard
-                        key={card.id}
-                        card={card}
-                        votesCount={votesCount}
-                        isVoted={isVoted}
-                        onVote={() => (isVoted ? removeVote(card.id) : castVote(card.id))}
-                        onDelete={() => deleteCard(card.id)}
+                        key={rootCard.id}
+                        card={rootCard}
+                        votesCount={getCardVotesCount(rootCard.id)}
+                        isVoted={hasUserVotedOnCard(rootCard.id)}
+                        onVote={() =>
+                          hasUserVotedOnCard(rootCard.id)
+                            ? removeVote(rootCard.id)
+                            : castVote(rootCard.id)
+                        }
+                        onDelete={() => deleteCard(rootCard.id)}
+                        isMasked={rootCard.content === "••••••••••••"}
+                        activeDragCardId={activeCard?.id || null}
                       />
                     );
                   })}
 
-                  {colCards.length === 0 && activeNewCardColumn !== column.id && (
+                  {rootCards.length === 0 && activeNewCardColumn !== column.id && (
                     <div
                       style={{
                         textAlign: "center",
@@ -1048,6 +1387,59 @@ export const BoardView: React.FC<BoardViewProps> = ({ roomId, user, onBack }) =>
         onAdd={addActionItem}
         onToggleStatus={(id, status) => updateActionItem(id, status)}
       />
+
+      {/* Drag Overlay pro plynulý náhled tažené karty pod kurzorem */}
+      <DragOverlay dropAnimation={null}>
+        {activeCard ? (
+          <div
+            style={{
+              padding: "12px 14px",
+              borderRadius: "var(--radius-sm)",
+              background: "var(--bg-card)",
+              border: "1px solid var(--accent-indigo)",
+              boxShadow: "0 14px 28px rgba(0,0,0,0.35), 0 10px 10px rgba(0,0,0,0.22)",
+              maxWidth: "320px",
+              transform: "rotate(2deg)",
+              opacity: 0.95,
+              cursor: "grabbing",
+              userSelect: "none",
+              pointerEvents: "none",
+            }}
+          >
+            <div style={{ display: "flex", alignItems: "flex-start", gap: "8px" }}>
+              <GripVertical size={16} color="var(--accent-indigo)" />
+              <p
+                style={{
+                  margin: 0,
+                  fontSize: "0.92rem",
+                  lineHeight: "1.4",
+                  wordBreak: "break-word",
+                  color: "var(--text-main)",
+                }}
+              >
+                {activeCard.content}
+              </p>
+            </div>
+            <div
+              style={{
+                display: "flex",
+                justifyContent: "space-between",
+                alignItems: "center",
+                marginTop: "8px",
+                paddingTop: "6px",
+                borderTop: "1px solid rgba(255, 255, 255, 0.08)",
+                fontSize: "0.75rem",
+                color: "var(--text-dim)",
+              }}
+            >
+              <span>{activeCard.authorName}</span>
+              <span style={{ color: "var(--accent-indigo)", fontWeight: 600 }}>
+                Přetažením spojíte s jinou kartou
+              </span>
+            </div>
+          </div>
+        ) : null}
+      </DragOverlay>
     </DndContext>
   );
 };
