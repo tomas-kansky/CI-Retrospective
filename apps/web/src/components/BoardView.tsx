@@ -40,6 +40,7 @@ import {
   Unlink,
   Sparkles,
   Bug,
+  ArrowDownWideNarrow,
 } from "lucide-react";
 import type { UserSession, RetroPhase, Card, Column } from "@ci-retro/types";
 import { useRetroRoom } from "../hooks/useRetroRoom";
@@ -390,6 +391,29 @@ export const BoardView: React.FC<BoardViewProps> = ({ roomId, user, onBack, onUp
   const [selectedTimerDuration, setSelectedTimerDuration] = useState<number>(300);
   const [isTimerMenuOpen, setIsTimerMenuOpen] = useState(false);
   const [customMinutesInput, setCustomMinutesInput] = useState("");
+
+  // Řazení karet dle počtu udělených hlasů
+  const [isSortedByVotes, setIsSortedByVotes] = useState<boolean>(false);
+  const prevPhaseRef = React.useRef<RetroPhase | undefined>(undefined);
+
+  useEffect(() => {
+    if (!state?.phase) return;
+    if (prevPhaseRef.current === undefined) {
+      // Výchozí stav při prvním načtení: ve fázi hlasování a diskuze je řazení automaticky zapnuto
+      if (state.phase === "VOTING" || state.phase === "DISCUSSION") {
+        setIsSortedByVotes(true);
+      }
+      prevPhaseRef.current = state.phase;
+    } else if (prevPhaseRef.current !== state.phase) {
+      // Při přepnutí do VOTING/DISCUSSION zapneme řazení, při návratu do předchozích fází vypneme
+      if (state.phase === "VOTING" || state.phase === "DISCUSSION") {
+        setIsSortedByVotes(true);
+      } else if (state.phase === "BRAINSTORMING" || state.phase === "GROUPING") {
+        setIsSortedByVotes(false);
+      }
+      prevPhaseRef.current = state.phase;
+    }
+  }, [state?.phase]);
 
   // Synchronizace délky z načteného stavu
   useEffect(() => {
@@ -761,6 +785,34 @@ export const BoardView: React.FC<BoardViewProps> = ({ roomId, user, onBack, onUp
             >
               {state.cardsBlurred ? <EyeOff size={15} /> : <Eye size={15} />}
               {state.cardsBlurred ? "Maskováno" : "Viditelné"}
+            </button>
+
+            {/* Sort by Votes Toggle Button */}
+            <button
+              type="button"
+              onClick={() => setIsSortedByVotes(!isSortedByVotes)}
+              title={
+                isSortedByVotes
+                  ? "Vypnout řazení dle hlasů (zobrazit v původním pořadí)"
+                  : "Seřadit karty a skupiny dle počtu udělených hlasů"
+              }
+              style={{
+                padding: "6px 12px",
+                borderRadius: "var(--radius-sm)",
+                background: isSortedByVotes ? "rgba(99, 102, 241, 0.15)" : "var(--bg-card)",
+                border: `1px solid ${isSortedByVotes ? "var(--accent-indigo)" : "var(--border-color)"}`,
+                color: isSortedByVotes ? "var(--accent-indigo)" : "var(--text-muted)",
+                display: "flex",
+                alignItems: "center",
+                gap: "6px",
+                fontSize: "0.85rem",
+                fontWeight: 600,
+                cursor: "pointer",
+                transition: "all 0.15s ease",
+              }}
+            >
+              <ArrowDownWideNarrow size={15} />
+              <span>{isSortedByVotes ? "Dle hlasů" : "Původní pořadí"}</span>
             </button>
 
             {/* Synchronized Timer with Custom Duration Picker */}
@@ -1390,9 +1442,15 @@ export const BoardView: React.FC<BoardViewProps> = ({ roomId, user, onBack, onUp
               (c) => !c.parentCardId || !state.cards.some((p) => p.id === c.parentCardId)
             );
 
-            // Pokud jsme ve fázi diskuze nebo hlasování, seřadíme karty podle celkového počtu hlasů skupiny sestupně!
-            if (state.phase === "VOTING" || state.phase === "DISCUSSION") {
-              rootCards.sort((a, b) => getGroupTotalVotes(b.id) - getGroupTotalVotes(a.id));
+            // Řazení karet: pokud je zapnuto řazení dle hlasů, řadíme sestupně dle celkového počtu hlasů skupiny
+            if (isSortedByVotes) {
+              rootCards.sort((a, b) => {
+                const diff = getGroupTotalVotes(b.id) - getGroupTotalVotes(a.id);
+                if (diff !== 0) return diff;
+                return (a.sortOrder ?? 0) - (b.sortOrder ?? 0);
+              });
+            } else {
+              rootCards.sort((a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0));
             }
 
             return (
@@ -1436,6 +1494,15 @@ export const BoardView: React.FC<BoardViewProps> = ({ roomId, user, onBack, onUp
                 >
                   {rootCards.map((rootCard) => {
                     const childCards = colAllCards.filter((c) => c.parentCardId === rootCard.id);
+                    if (isSortedByVotes) {
+                      childCards.sort((a, b) => {
+                        const diff = getCardVotesCount(b.id) - getCardVotesCount(a.id);
+                        if (diff !== 0) return diff;
+                        return (a.sortOrder ?? 0) - (b.sortOrder ?? 0);
+                      });
+                    } else {
+                      childCards.sort((a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0));
+                    }
                     const isGroup = childCards.length > 0;
                     const isCollapsed = !!collapsedGroupIds[rootCard.id];
                     const groupVotes = getGroupTotalVotes(rootCard.id);

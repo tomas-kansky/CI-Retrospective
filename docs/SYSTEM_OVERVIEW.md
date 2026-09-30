@@ -28,7 +28,7 @@ CI Retrospective/
 │   ├── web/                      # Frontend (Vite + React SPA)
 │   │   ├── src/
 │   │   │   ├── components/
-│   │   │   │   ├── BoardView.tsx         # Hlavní plocha retrospektivy, sloupce, karty, DnD
+│   │   │   │   ├── BoardView.tsx         # Hlavní plocha retrospektivy, sloupce, karty, DnD, řazení dle hlasů
 │   │   │   │   ├── ActionItemsDrawer.tsx # Postranní panel akčních kroků (úkolů)
 │   │   │   │   └── ExportModal.tsx       # Export do Markdownu a CSV
 │   │   │   ├── hooks/
