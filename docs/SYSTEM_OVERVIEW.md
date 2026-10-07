@@ -14,6 +14,7 @@
 - **Hierarchické seskupování karet**: Přetažením karty na jinou kartu vzniká skupina myšlenek (`parentCardId`).
 - **Anonymní zvířata**: Přátelské a vtipné generování jmen ve stylu Google Docs (např. *Anonymní Vombat*, *Anonymní Axolotl*).
 - **Časovač & Akční kroky**: Synchronizovaný odpočet s předvolbami i vlastním časem, správa a export úkolů.
+- **Sdílení s QR kódem**: Rychlé pozvání účastníků do místnosti přes generovaný QR kód i přímý URL odkaz s možností stažení PNG.
 - **Serverless Edge architektura**: 100% běh na Cloudflare ekosystému (Workers, Durable Objects, D1 SQLite).
 
 ---
@@ -30,7 +31,9 @@ CI Retrospective/
 │   │   │   ├── components/
 │   │   │   │   ├── BoardView.tsx         # Hlavní plocha retrospektivy, sloupce, karty, DnD, řazení dle hlasů
 │   │   │   │   ├── ActionItemsDrawer.tsx # Postranní panel akčních kroků (úkolů)
-│   │   │   │   └── ExportModal.tsx       # Export do Markdownu a CSV
+│   │   │   │   ├── ExportModal.tsx       # Export do Markdownu a CSV
+│   │   │   │   ├── ShareModal.tsx        # Dialog sdílení s URL, tlačítkem kopírování a QR kódem
+│   │   │   │   └── BugReportModal.tsx    # Hlášení chyb a zpětné vazby z UI přímo do databáze
 │   │   │   ├── hooks/
 │   │   │   │   └── useRetroRoom.ts       # Klíčový WebSocket hook pro synchronizaci tabule
 │   │   │   ├── utils/

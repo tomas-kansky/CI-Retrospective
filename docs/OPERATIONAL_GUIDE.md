@@ -190,6 +190,8 @@ git diff
 | Zvířecí jména / Anonymní avatary | `apps/web/src/utils/names.ts` |
 | Hlavní dashboard / Seznam retro | `apps/web/src/App.tsx` |
 | Export do Markdown / CSV | `apps/web/src/components/ExportModal.tsx` |
+| Sdílení místnosti / QR kód | `apps/web/src/components/ShareModal.tsx` |
+| Hlášení chyb z UI | `apps/web/src/components/BugReportModal.tsx` |
 | Akční kroky / Úkoly (Drawer) | `apps/web/src/components/ActionItemsDrawer.tsx` |
 | WebSocket server / Durable Object / Stav tabule | `apps/server/src/room.ts` |
 | REST API endpointy / Hono server | `apps/server/src/index.ts` |

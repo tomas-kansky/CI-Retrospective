@@ -45,6 +45,7 @@ import {
 import type { UserSession, RetroPhase, Card, Column } from "@ci-retro/types";
 import { useRetroRoom } from "../hooks/useRetroRoom";
 import { ExportModal } from "./ExportModal";
+import { ShareModal } from "./ShareModal";
 import { ActionItemsDrawer } from "./ActionItemsDrawer";
 import { BugReportModal } from "./BugReportModal";
 import { getRandomAnonymousName } from "../utils/names";
@@ -344,7 +345,6 @@ export const BoardView: React.FC<BoardViewProps> = ({ roomId, user, onBack, onUp
   const [activeNewCardColumn, setActiveNewCardColumn] = useState<string | null>(null);
   const [newCardText, setNewCardText] = useState("");
   const [isAnonymous, setIsAnonymous] = useState(false);
-  const [copiedLink, setCopiedLink] = useState(false);
 
   // Stav pro seskupování a drag overlay
   const [activeCard, setActiveCard] = useState<Card | null>(null);
@@ -383,6 +383,7 @@ export const BoardView: React.FC<BoardViewProps> = ({ roomId, user, onBack, onUp
 
   // Modály
   const [isExportOpen, setIsExportOpen] = useState(false);
+  const [isShareOpen, setIsShareOpen] = useState(false);
   const [isActionItemsOpen, setIsActionItemsOpen] = useState(false);
   const [isBugReportOpen, setIsBugReportOpen] = useState(false);
 
@@ -473,12 +474,6 @@ export const BoardView: React.FC<BoardViewProps> = ({ roomId, user, onBack, onUp
 
     return () => clearInterval(interval);
   }, [state?.timerEndsAt]);
-
-  const handleCopyLink = () => {
-    navigator.clipboard.writeText(window.location.href);
-    setCopiedLink(true);
-    setTimeout(() => setCopiedLink(false), 2500);
-  };
 
   const handleAddCardSubmit = (columnId: string) => {
     if (!newCardText.trim()) return;
@@ -1075,21 +1070,25 @@ export const BoardView: React.FC<BoardViewProps> = ({ roomId, user, onBack, onUp
 
             {/* Share Link Button */}
             <button
-              onClick={handleCopyLink}
+              onClick={() => setIsShareOpen(true)}
+              title="Sdílet odkaz a QR kód pro připojení"
               style={{
                 padding: "6px 12px",
                 borderRadius: "var(--radius-sm)",
-                background: copiedLink ? "var(--accent-emerald)" : "var(--accent-indigo)",
+                background: "var(--accent-indigo)",
                 color: "#ffffff",
                 display: "flex",
                 alignItems: "center",
                 gap: "6px",
                 fontSize: "0.85rem",
                 fontWeight: 600,
+                border: "none",
+                cursor: "pointer",
+                transition: "opacity 0.15s ease",
               }}
             >
-              {copiedLink ? <Check size={15} /> : <Share2 size={15} />}
-              {copiedLink ? "Zkopírováno" : "Sdílet"}
+              <Share2 size={15} />
+              <span>Sdílet</span>
             </button>
 
             {/* Nahlásit chybu Button */}
@@ -1801,10 +1800,17 @@ export const BoardView: React.FC<BoardViewProps> = ({ roomId, user, onBack, onUp
         </div>
       </div>
 
-      {/* Modály: Export a Akční kroky */}
+      {/* Modály: Export, Sdílení a Akční kroky */}
       {isExportOpen && (
         <ExportModal state={state} onClose={() => setIsExportOpen(false)} />
       )}
+
+      <ShareModal
+        isOpen={isShareOpen}
+        onClose={() => setIsShareOpen(false)}
+        roomId={roomId}
+        roomTitle={state.title}
+      />
 
       <ActionItemsDrawer
         actionItems={state.actionItems || []}
