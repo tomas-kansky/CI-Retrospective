@@ -61,9 +61,11 @@ CI Retrospective/
 │
 ├── docs/                         # Veškerá projektová dokumentace a analýzy
 │   ├── SYSTEM_OVERVIEW.md        # Tento dokument (High-Level Guide)
+│   ├── OPERATIONAL_GUIDE.md      # Operativní příručka pro agenty a recepty
 │   ├── bug_reports.md            # Historický log chyb a oprav
 │   ├── ticket_system_analysis.md # Analýza ticketového systému
-│   └── tickets/                  # Jednotlivé hlášené tickety ve formátu .md
+│   ├── tickets/                  # Jednotlivé hlášené tickety ve formátu .md
+│   └── work-logs/                # Denní záznamy realizovaných prací (YYYY-MM-DD.md)
 │
 ├── AGENTS.md                     # Instrukce pro AI agenty (workflow, pravidla, commit formát)
 └── README.md                     # Základní přehled projektu

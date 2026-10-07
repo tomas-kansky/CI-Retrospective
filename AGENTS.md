@@ -53,6 +53,7 @@ Každý agent by měl při řešení úkolů postupovat podle těchto bodů:
 - **Styling**: Projekt používá **Vanilla CSS** s proměnnými v `apps/web/src/index.css`. Nepoužívej Tailwind utility třídy.
 
 ### 3. Před odevzdáním práce:
+- **Zápis do denního Work Logu (Povinné)**: S KAŽDOU implementací či opravou vytvoř nebo doplň soubor `docs/work-logs/YYYY-MM-DD.md` (1 soubor na den). Zaznamenej časový interval (`HH:MM – HH:MM`), odhad stráveného času, popis implementace, seznam změněných souborů a hash commitu.
 - **Aktualizace dokumentace**: S KAŽDOU implementací či významnější změnou kódu VŽDY vytvoř nebo aktualizuj patřičnou dokumentaci v `docs/` (např. `docs/SYSTEM_OVERVIEW.md`, `docs/OPERATIONAL_GUIDE.md`), aby se budoucí agenti bez kontextu okamžitě zorientovali.
 - **Typová kontrola**: VŽDY spusť `npm run typecheck --workspaces`.
 - **Commit**: Dodrž formát `<type>: <popisek>`.
@@ -93,3 +94,16 @@ Každý agent by měl při řešení úkolů postupovat podle těchto bodů:
 - **Stažení bez čtení**: Pokud uživatel chce začít opravovat bugy zalogované pomocí tlačítka „Nahlásit chybu“, nejprve jednotlivé tickety stáhni (`git pull origin main` nebo `npm run sync:tickets`), ale **VŮBEC JE NEČTI**!
 - **Hlášení a dotaz na první bug**: Uživateli pouze vypiš počet stažených/dostupných ticketů a zeptej se, zda chce opravit první bug.
 - **Striktní limit 1 bug na běh**: **NIKDY neopravuj v jednom běhu více jak 1 bug!** Každý bug musí projít kompletním cyklem (čtení jednoho ticketu -> oprava -> typecheck -> zápis řešení do ticketu -> commit & push -> předání uživateli).
+
+### 7. Povinné vedení denních Work Logs (Daily Work Logs)
+- **Umístění a periodicita**: Složka `docs/work-logs/`, soubor `YYYY-MM-DD.md`. Záznamy se vytvářejí striktně **jeden soubor na den**.
+- **Průběžné doplňování**: Pokud soubor pro dnešní datum již existuje, neprepisuj jej, ale doplň na konec nový záznam (blok) a aktualizuj celkový součet odpracovaného času v hlavičce dne.
+- **Povinný timestamp a výpočet času**: Každá položka MUSÍ obsahovat přesný interval začátku a konce (např. `[17:25 – 17:32]`), ze kterého je jasně odvoditelný strávený čas (např. `30 min (0.5 h)`). To slouží jako přímý podklad pro sledování nákladů, timeboard a fakturaci.
+- **Struktura položky**:
+  - `### [HH:MM – HH:MM] Název úkolu / feat / fix`
+  - `- **Časové rozmezí**:`
+  - `- **Odhadovaný čas**:`
+  - `- **Typ**: feat / fix / docs / refactor / chore`
+  - `- **Popis**:` (konkrétní přínosy a provedené změny)
+  - `- **Změněné soubory**:` (seznam cest k souborům)
+  - `- **Commit**: hash – zpráva`

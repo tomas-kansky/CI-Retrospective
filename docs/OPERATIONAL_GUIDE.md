@@ -19,12 +19,13 @@ Každý agent by měl projít tímto kontrolním seznamem:
 3. **Respektuj Vanilla CSS design systém**: Nepoužívej Tailwind utility třídy. Používej zavedené CSS proměnné z `apps/web/src/index.css` (např. `var(--bg-card)`, `var(--accent-indigo)`, `var(--text-main)`).
 
 ### Před odevzdáním práce:
-1. **Aktualizace dokumentace**: S každou implementací VŽDY vytvoř nebo aktualizuj dokumentaci v `docs/` (`docs/SYSTEM_OVERVIEW.md`, `docs/OPERATIONAL_GUIDE.md`), aby se budoucí agenti bez kontextu okamžitě zorientovali.
-2. **Typová kontrola**: Spusť `npm run typecheck --workspaces`. Nesmí projít žádná typová chyba.
-3. **Žádné browser testy**: Pokud tě o to uživatel explicitně nepožádal, **NESPOUŠTĚJ** browser subagenty ani nedělej screenshoty.
-4. **Commit ve formátu Conventional Commits**: `<type>: <popisek>` (např. `feat: add export to pdf`, `fix: timer sync on reconnect`).
-5. **Okamžitý push**: Spusť `git push origin main`.
-6. **Stručné předání uživateli**: Shrň provedené změny a ihned předej slovo.
+1. **Zápis do denního Work Logu**: S KAŽDOU implementací či opravou vytvoř nebo doplň soubor `docs/work-logs/YYYY-MM-DD.md` (1 soubor na den). Zaznamenej časový interval (`HH:MM – HH:MM`), odhad stráveného času, popis implementace, seznam změněných souborů a hash commitu.
+2. **Aktualizace dokumentace**: S každou implementací VŽDY vytvoř nebo aktualizuj dokumentaci v `docs/` (`docs/SYSTEM_OVERVIEW.md`, `docs/OPERATIONAL_GUIDE.md`), aby se budoucí agenti bez kontextu okamžitě zorientovali.
+3. **Typová kontrola**: Spusť `npm run typecheck --workspaces`. Nesmí projít žádná typová chyba.
+4. **Žádné browser testy**: Pokud tě o to uživatel explicitně nepožádal, **NESPOUŠTĚJ** browser subagenty ani nedělej screenshoty.
+5. **Commit ve formátu Conventional Commits**: `<type>: <popisek>` (např. `feat: add export to pdf`, `fix: timer sync on reconnect`).
+6. **Okamžitý push**: Spusť `git push origin main`.
+7. **Stručné předání uživateli**: Shrň provedené změny a ihned předej slovo.
 
 ---
 
@@ -161,6 +162,28 @@ Tento postup je **závazný** pro jakékoliv řešení chyb nahlášených uživ
 
 ---
 
+### 📖 Playbook D: Vedení denních Work Logs (Daily Work Logs)
+
+Všechny záznamy o odvedené práci se uchovávají ve složce `docs/work-logs/`.
+
+1. **Jeden soubor na den**: Název souboru je vždy ve formátu `YYYY-MM-DD.md` (např. `docs/work-logs/2026-10-07.md`).
+2. **Postupné doplňování**: Pokud soubor pro dnešní den již existuje, agent jej neprepisuje, ale přidá novou položku pod `## 📋 Záznamy prací` a aktualizuje celkový součet odpracovaného času v hlavičce dne (`⏱️ Přehled dne`).
+3. **Časová razítka a trvání**: U každého bloku uveď přesný začátek a konec (např. `[17:25 – 17:32]`) podle aktuálního lokálního času z kontextu promptu a odhad trvání v minutách a hodinách (např. `30 min (0.5 h)`). To slouží pro přímou návaznost na timesheety, timeboard a fakturaci.
+4. **Vzorová šablona položky**:
+   ```markdown
+   ### [HH:MM – HH:MM] Název úkolu / feat / fix
+   - **Časové rozmezí**: HH:MM – HH:MM
+   - **Odhadovaný čas**: XX min (X.X h)
+   - **Typ**: feat / fix / docs / refactor / chore
+   - **Popis**:
+     - Shrnutí provedených úprav a jejich přínosů
+   - **Změněné soubory**:
+     - `cesta/k/souboru.ts`
+   - **Commit**: `hash` – `zpráva commitu`
+   ```
+
+---
+
 ## 🔍 4. Užitečné diagnostické a kontrolní příkazy
 
 Všechny příkazy prováděj z kořene repozitáře v PowerShellu:
@@ -198,4 +221,5 @@ git diff
 | Databázové schéma SQLite (D1) | `apps/server/src/db/schema.ts` |
 | Zod schémata a sdílené typy | `packages/types/src/index.ts` |
 | Hlášené tickety a chyby | `docs/tickets/` |
+| Denní záznamy prací (Work Logs) | `docs/work-logs/` |
 | Globální systémový přehled | `docs/SYSTEM_OVERVIEW.md` |
