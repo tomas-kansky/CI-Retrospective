@@ -4,6 +4,15 @@ Tento dokument je primárním rozcestníkem pro AI agenty pracující v repozit�
 
 ---
 
+## 🤖 Agentic Design Framework
+Před zahájením práce a pročtením projektu načti kontext, globální pravidla a metodiku z centrálního repozitáře [Agentic Design Framework](https://github.com/tomas-kansky/agentic-design-framework) přes Git v konzoli.
+Tento projekt striktně přebírá centrální standardy:
+- **Work Logs & Time Tracking** (`rules/work-logs.md`) – denní záznamy v `docs/work-logs/YYYY-MM-DD.md`.
+- **Git Conventions** (`rules/git-conventions.md`) – formát commitů `<type>: <popisek>` a automatický push po commitu.
+- **Code Standards & Test Policy** (`rules/code-standards.md`) – zákaz spouštění automatických browser testů po implementaci, okamžité předání výsledků.
+
+---
+
 ## 🗺️ Rychlá orientace v projektu (Quick Architecture Summary)
 
 > **Kompletní systémový a architektonický přehled:** Přečtěte si [docs/SYSTEM_OVERVIEW.md](docs/SYSTEM_OVERVIEW.md) pro podrobný popis celého systému, stavového automatu a toku dat.

@@ -29,3 +29,5 @@ Thumbs.db
 
 # Antigravity / Gemini logs and cache
 .gemini/
+*.code-workspace
+
