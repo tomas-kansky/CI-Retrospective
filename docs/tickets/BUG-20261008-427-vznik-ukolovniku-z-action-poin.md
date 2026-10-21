@@ -2,7 +2,7 @@
 id: "BUG-20261008-427"
 title: "Vznik úkolovníku z action points"
 type: "feature"
-status: "open"
+status: "resolved"
 priority: "medium"
 createdAt: "2026-10-08T11:53:43.166Z"
 author:
@@ -44,6 +44,10 @@ Když se v nějaké board přidají action point, tak je chceme předělat do ch
 
 ## 🛠️ Návrh řešení & Historie oprav
 *(Tuto sekci doplňuje řešitel při opravě)*
-- **Příčina**: 
+- **Příčina**: Chybělo agregované zobrazení akčních kroků z jednotlivých retrospektiv na hlavní stránce (Landing page) a REST API pro centrální správu a odškrtávání úkolů.
 - **Změny**: 
-- **Commit**: 
+  1. `packages/types/src/index.ts`: Přidán sdílený typ `GlobalActionItem` s názvem retrospektivy.
+  2. `apps/server/src/index.ts`: Přidány REST API endpointy `GET /api/action-items` a `PATCH /api/action-items/:id`.
+  3. `apps/web/src/components/GlobalActionItemsModal.tsx`: Vytvořen modál centrálního úkolovníku s filtry, odškrtáváním, přesunem hotových úkolů na spodek se škrtnutým textem a přímým odkazem do příslušné tabule.
+  4. `apps/web/src/App.tsx`: Přidána tlačítka a počítadlo otevřených úkolů do horní lišty i do banneru na Landing page.
+- **Commit**: `feat: add global action items checklist to landing page` 

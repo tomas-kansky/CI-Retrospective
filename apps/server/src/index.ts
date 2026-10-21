@@ -58,6 +58,45 @@ app.get("/api/retrospectives", async (c) => {
   return c.json({ retrospectives: allRetros });
 });
 
+// Seznam všech akčních kroků napříč všemi retrospektivami (Globální úkolovník)
+app.get("/api/action-items", async (c) => {
+  const db = createDb(c.env.DB);
+  const items = await db
+    .select({
+      id: actionItems.id,
+      retrospectiveId: actionItems.retrospectiveId,
+      text: actionItems.text,
+      assignee: actionItems.assignee,
+      status: actionItems.status,
+      dueDate: actionItems.dueDate,
+      createdAt: actionItems.createdAt,
+      retrospectiveTitle: retrospectives.title,
+    })
+    .from(actionItems)
+    .leftJoin(retrospectives, eq(actionItems.retrospectiveId, retrospectives.id))
+    .orderBy(desc(actionItems.createdAt));
+
+  return c.json({ actionItems: items });
+});
+
+// Aktualizace stavu akčního kroku (např. odškrtnutí jako hotovo / otevření)
+app.patch("/api/action-items/:id", async (c) => {
+  const id = c.req.param("id");
+  const body = await c.req.json<{ status: "OPEN" | "IN_PROGRESS" | "DONE" }>();
+  if (!body.status) {
+    return c.json({ error: "Chybí parametr status" }, 400);
+  }
+
+  const db = createDb(c.env.DB);
+  await db
+    .update(actionItems)
+    .set({ status: body.status })
+    .where(eq(actionItems.id, id));
+
+  return c.json({ success: true, id, status: body.status });
+});
+
+
 // Získání detailu retrospektivy včetně sloupců a karet
 app.get("/api/retrospectives/:id", async (c) => {
   const id = c.req.param("id");

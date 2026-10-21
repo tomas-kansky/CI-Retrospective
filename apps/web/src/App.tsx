@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from "react";
-import { Sparkles, Moon, Sun, Plus, RefreshCw, Layers, CheckCircle2, ChevronRight, X, ArrowRight, Bug } from "lucide-react";
+import { Sparkles, Moon, Sun, Plus, RefreshCw, Layers, CheckCircle2, ChevronRight, X, ArrowRight, Bug, CheckSquare } from "lucide-react";
 import type { TemplateType, UserSession } from "@ci-retro/types";
 import { BoardView } from "./components/BoardView";
 import { BugReportModal } from "./components/BugReportModal";
+import { GlobalActionItemsModal } from "./components/GlobalActionItemsModal";
 import { getRandomAnonymousName } from "./utils/names";
 
 interface RetroItem {
@@ -74,6 +75,8 @@ export const App: React.FC = () => {
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [isModalOpen, setIsModalOpen] = useState<boolean>(false);
   const [isBugReportOpen, setIsBugReportOpen] = useState<boolean>(false);
+  const [isTasksModalOpen, setIsTasksModalOpen] = useState<boolean>(false);
+  const [openActionItemsCount, setOpenActionItemsCount] = useState<number>(0);
 
   // Formulář pro novou retro
   const [newTitle, setNewTitle] = useState("");
@@ -117,8 +120,20 @@ export const App: React.FC = () => {
     }
   };
 
+  const loadActionItemsCount = async () => {
+    try {
+      const res = await fetch("/api/action-items");
+      if (res.ok) {
+        const data = await res.json();
+        const open = (data.actionItems || []).filter((a: any) => a.status !== "DONE").length;
+        setOpenActionItemsCount(open);
+      }
+    } catch {}
+  };
+
   useEffect(() => {
     loadRetrospectives();
+    loadActionItemsCount();
   }, []);
 
   const handleCreateRetro = async (e: React.FormEvent) => {
@@ -325,6 +340,42 @@ export const App: React.FC = () => {
           </button>
 
           <button
+            onClick={() => setIsTasksModalOpen(true)}
+            title="Otevřít centrální úkolovník"
+            style={{
+              padding: "8px 14px",
+              borderRadius: "var(--radius-md)",
+              background: "rgba(16, 185, 129, 0.1)",
+              color: "var(--accent-emerald)",
+              display: "flex",
+              alignItems: "center",
+              gap: "6px",
+              fontSize: "0.85rem",
+              fontWeight: 600,
+              border: "1px solid rgba(16, 185, 129, 0.3)",
+              cursor: "pointer",
+            }}
+          >
+            <CheckSquare size={16} />
+            <span>Úkolovník</span>
+            {openActionItemsCount > 0 && (
+              <span
+                style={{
+                  background: "var(--accent-emerald)",
+                  color: "#ffffff",
+                  fontSize: "0.72rem",
+                  padding: "1px 6px",
+                  borderRadius: "var(--radius-full)",
+                  fontWeight: 700,
+                  marginLeft: "2px",
+                }}
+              >
+                {openActionItemsCount}
+              </span>
+            )}
+          </button>
+
+          <button
             onClick={() => setIsBugReportOpen(true)}
             title="Nahlásit chybu nebo zpětnou vazbu"
             style={{
@@ -389,23 +440,60 @@ export const App: React.FC = () => {
             </p>
           </div>
 
-          <button
-            onClick={() => setIsModalOpen(true)}
-            style={{
-              padding: "12px 24px",
-              borderRadius: "var(--radius-md)",
-              background: "var(--accent-indigo)",
-              color: "#ffffff",
-              fontWeight: 700,
-              fontSize: "0.95rem",
-              display: "flex",
-              alignItems: "center",
-              gap: "8px",
-              boxShadow: "var(--shadow-glow)",
-            }}
-          >
-            <Plus size={20} /> Vytvořit retrospektivu
-          </button>
+          <div style={{ display: "flex", gap: "12px", flexWrap: "wrap", alignItems: "center" }}>
+            <button
+              onClick={() => setIsTasksModalOpen(true)}
+              style={{
+                padding: "12px 20px",
+                borderRadius: "var(--radius-md)",
+                background: "var(--bg-card)",
+                color: "var(--text-main)",
+                fontWeight: 600,
+                fontSize: "0.95rem",
+                display: "flex",
+                alignItems: "center",
+                gap: "8px",
+                border: "1px solid var(--border-color)",
+                cursor: "pointer",
+              }}
+            >
+              <CheckSquare size={18} color="var(--accent-emerald)" />
+              <span>Úkolovník</span>
+              {openActionItemsCount > 0 && (
+                <span
+                  style={{
+                    background: "rgba(16, 185, 129, 0.15)",
+                    color: "var(--accent-emerald)",
+                    border: "1px solid rgba(16, 185, 129, 0.3)",
+                    padding: "1px 7px",
+                    borderRadius: "var(--radius-full)",
+                    fontSize: "0.78rem",
+                    fontWeight: 700,
+                  }}
+                >
+                  {openActionItemsCount}
+                </span>
+              )}
+            </button>
+
+            <button
+              onClick={() => setIsModalOpen(true)}
+              style={{
+                padding: "12px 24px",
+                borderRadius: "var(--radius-md)",
+                background: "var(--accent-indigo)",
+                color: "#ffffff",
+                fontWeight: 700,
+                fontSize: "0.95rem",
+                display: "flex",
+                alignItems: "center",
+                gap: "8px",
+                boxShadow: "var(--shadow-glow)",
+              }}
+            >
+              <Plus size={20} /> Vytvořit retrospektivu
+            </button>
+          </div>
         </section>
 
         {/* Retrospectives Grid / List */}
@@ -684,6 +772,16 @@ export const App: React.FC = () => {
         isOpen={isBugReportOpen}
         onClose={() => setIsBugReportOpen(false)}
         currentUser={currentUser}
+      />
+
+      {/* Global Action Items Checklist Modal */}
+      <GlobalActionItemsModal
+        isOpen={isTasksModalOpen}
+        onClose={() => {
+          setIsTasksModalOpen(false);
+          loadActionItemsCount();
+        }}
+        onOpenRetro={(id) => handleOpenRoom(id)}
       />
     </div>
   );

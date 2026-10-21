@@ -33,7 +33,8 @@ CI Retrospective/
 │   │   │   │   ├── ActionItemsDrawer.tsx # Postranní panel akčních kroků (úkolů)
 │   │   │   │   ├── ExportModal.tsx       # Export do Markdownu a CSV
 │   │   │   │   ├── ShareModal.tsx        # Dialog sdílení s URL, tlačítkem kopírování a QR kódem
-│   │   │   │   └── BugReportModal.tsx    # Hlášení chyb a zpětné vazby z UI přímo do databáze
+│   │   │   │   ├── BugReportModal.tsx    # Hlášení chyb a zpětné vazby z UI přímo do databáze
+│   │   │   │   └── GlobalActionItemsModal.tsx # Centrální úkolovník / checklist ze všech retrospektiv
 │   │   │   ├── hooks/
 │   │   │   │   └── useRetroRoom.ts       # Klíčový WebSocket hook pro synchronizaci tabule
 │   │   │   ├── utils/
@@ -139,7 +140,8 @@ Každá retrospektiva prochází těmito fázemi (`RetroPhase`):
 | **Přetahování karet (Drag & Drop, mobilní dotyk, slučování)** | `MouseSensor`, `TouchSensor`, `customCollisionDetection`, `handleDragEnd` v [BoardView.tsx](file:///c:/Users/tomat/Documents/Programming%20Projects/CI%20Retrospective/apps/web/src/components/BoardView.tsx#L445-L540) |
 | **Klientskou WebSocket logiku, reconnect, akce** | [`apps/web/src/hooks/useRetroRoom.ts`](file:///c:/Users/tomat/Documents/Programming%20Projects/CI%20Retrospective/apps/web/src/hooks/useRetroRoom.ts) |
 | **Serverovou logiku místnosti, herní pravidla, blur** | [`apps/server/src/room.ts`](file:///c:/Users/tomat/Documents/Programming%20Projects/CI%20Retrospective/apps/server/src/room.ts) |
-| **REST endpointy, tvorbu retro, šablony, tickety** | [`apps/server/src/index.ts`](file:///c:/Users/tomat/Documents/Programming%20Projects/CI%20Retrospective/apps/server/src/index.ts) |
+| **REST endpointy, retrospektivy, globální úkoly, tickety** | [`apps/server/src/index.ts`](file:///c:/Users/tomat/Documents/Programming%20Projects/CI%20Retrospective/apps/server/src/index.ts) |
+| **Centrální úkolovník / checklist na Landing Page** | [`apps/web/src/components/GlobalActionItemsModal.tsx`](file:///c:/Users/tomat/Documents/Programming%20Projects/CI%20Retrospective/apps/web/src/components/GlobalActionItemsModal.tsx) |
 | **Strukturu tabulek v databázi (D1)** | [`apps/server/src/db/schema.ts`](file:///c:/Users/tomat/Documents/Programming%20Projects/CI%20Retrospective/apps/server/src/db/schema.ts) |
 | **Sdílené typy zpráv a entit** | [`packages/types/src/index.ts`](file:///c:/Users/tomat/Documents/Programming%20Projects/CI%20Retrospective/packages/types/src/index.ts) |
 | **Generování jmen (anonymní zvířata)** | [`apps/web/src/utils/names.ts`](file:///c:/Users/tomat/Documents/Programming%20Projects/CI%20Retrospective/apps/web/src/utils/names.ts) |

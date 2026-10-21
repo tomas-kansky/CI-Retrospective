@@ -76,6 +76,10 @@ export const ActionItemSchema = z.object({
 });
 export type ActionItem = z.infer<typeof ActionItemSchema>;
 
+export interface GlobalActionItem extends ActionItem {
+  retrospectiveTitle?: string | null;
+}
+
 export const RetrospectiveStateSchema = z.object({
   id: z.string(),
   title: z.string(),
