@@ -10,9 +10,12 @@ interface ExportModalProps {
 export const ExportModal: React.FC<ExportModalProps> = ({ state, onClose }) => {
   const [copied, setCopied] = useState(false);
 
-  // Výpočet hlasů
-  const getCardVotesCount = (cardId: string) => {
-    return state.votes.filter((v) => v.cardId === cardId).length;
+  // Výpočet skóre (palce nahoru minus palce dolů)
+  const getCardScore = (cardId: string) => {
+    return state.votes.reduce((acc, v) => {
+      if (v.cardId !== cardId) return acc;
+      return acc + (v.voteType === "DOWN" ? -1 : 1);
+    }, 0);
   };
 
   // Generování Markdownu
@@ -26,24 +29,24 @@ export const ExportModal: React.FC<ExportModalProps> = ({ state, onClose }) => {
         (c) => !c.parentCardId || !state.cards.some((p) => p.id === c.parentCardId)
       );
 
-      // Seřadíme podle hlasů sestupně
-      rootCards.sort((a, b) => getCardVotesCount(b.id) - getCardVotesCount(a.id));
+      // Seřadíme podle skóre sestupně
+      rootCards.sort((a, b) => getCardScore(b.id) - getCardScore(a.id));
 
       md += `## ${col.title} (${colCards.length})\n`;
       if (rootCards.length === 0) {
         md += `*(žádné záznamy)*\n\n`;
       } else {
         rootCards.forEach((c) => {
-          const votes = getCardVotesCount(c.id);
-          const votesBadge = votes > 0 ? ` (+${votes} hlasů)` : "";
+          const votes = getCardScore(c.id);
+          const votesBadge = votes !== 0 ? ` (${votes > 0 ? `+${votes}` : votes} hlasů)` : "";
           const author = c.authorName ? ` [${c.authorName}]` : "";
           const children = colCards.filter((child) => child.parentCardId === c.id);
 
           if (children.length > 0) {
             md += `- **[Skupina]** ${c.content}${votesBadge}${author}\n`;
             children.forEach((child) => {
-              const childVotes = getCardVotesCount(child.id);
-              const childVotesBadge = childVotes > 0 ? ` (+${childVotes} hlasů)` : "";
+              const childVotes = getCardScore(child.id);
+              const childVotesBadge = childVotes !== 0 ? ` (${childVotes > 0 ? `+${childVotes}` : childVotes} hlasů)` : "";
               const childAuthor = child.authorName ? ` [${child.authorName}]` : "";
               md += `  - ↳ ${child.content}${childVotesBadge}${childAuthor}\n`;
             });
@@ -83,7 +86,7 @@ export const ExportModal: React.FC<ExportModalProps> = ({ state, onClose }) => {
         const isChild = !!c.parentCardId;
         const prefix = isChild ? "[Podkarta] " : "";
         const cleanContent = `"${(prefix + c.content).replace(/"/g, '""')}"`;
-        const votes = getCardVotesCount(c.id);
+        const votes = getCardScore(c.id);
         csv += `"${col.title}",${cleanContent},${votes},"${c.authorName}","${c.createdAt}"\n`;
       });
     });

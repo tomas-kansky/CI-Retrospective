@@ -56,6 +56,7 @@ export async function ensureTablesExist(d1: D1Database) {
           id text PRIMARY KEY NOT NULL,
           card_id text NOT NULL,
           user_session_id text NOT NULL,
+          vote_type text DEFAULT 'UP' NOT NULL,
           created_at text NOT NULL,
           FOREIGN KEY (card_id) REFERENCES cards(id) ON UPDATE no action ON DELETE cascade
         );
@@ -97,6 +98,14 @@ export async function ensureTablesExist(d1: D1Database) {
         );
       `),
     ]);
+
+    // Bezpečná migrace pro stávající tabulky bez sloupce vote_type
+    try {
+      await d1.prepare("ALTER TABLE votes ADD COLUMN vote_type text DEFAULT 'UP'").run();
+    } catch {
+      // Sloupec již existuje, ignorujeme
+    }
+
     tablesInitialized = true;
   } catch (err) {
     console.error("Auto table migration error:", err);

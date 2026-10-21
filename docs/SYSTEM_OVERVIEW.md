@@ -109,14 +109,14 @@ CI Retrospective/
 Každá retrospektiva prochází těmito fázemi (`RetroPhase`):
 1. **`BRAINSTORMING`**: Psaní karet. Karty ostatních jsou maskované (`cardsBlurred: true`).
 2. **`GROUPING`**: Odmaskování karet. Účastníci přetahují příbuzné karty na sebe a slučují je do skupin.
-3. **`VOTING`**: Účastníci hlasují o nejdůležitějších tématech (omezený počet hlasů na osobu).
-4. **`DISCUSSION`**: Diskuze nad seřazenými kartami s podporou odpočtu času (Timer).
+3. **`VOTING`**: Účastníci hlasují o nejdůležitějších tématech (omezený počet hlasů na osobu; podpora palců nahoru `+1` i palců dolů `-1` se zobrazením čistého skóre, které může jít do mínusu).
+4. **`DISCUSSION`**: Diskuze nad seřazenými kartami dle čistého skóre s podporou odpočtu času (Timer).
 5. **`ACTION_ITEMS`**: Definice konkrétních úkolů s přiřazeným řešitelem a termínem.
 6. **`ARCHIVED`**: Uzavřená retrospektiva pouze pro čtení.
 
 ### 3.2 WebSocket komunikace
 - Klient odesílá zprávy typu `ClientMessage` (validováno přes `ClientMessageSchema` v `packages/types`):
-  - `JOIN`, `ADD_CARD`, `UPDATE_CARD`, `DELETE_CARD`, `MOVE_CARD`, `GROUP_CARDS`, `UNGROUP_CARD`, `VOTE`, `REMOVE_VOTE`, `SET_PHASE`, `TOGGLE_BLUR`, `CONTROL_TIMER`, `SET_TYPING`, `ADD_ACTION_ITEM`, `UPDATE_ACTION_ITEM`, `CLEANUP_PRESENCE`.
+  - `JOIN`, `ADD_CARD`, `UPDATE_CARD`, `DELETE_CARD`, `MOVE_CARD`, `GROUP_CARDS`, `UNGROUP_CARD`, `CAST_VOTE` (s volitelným `voteType: "UP" | "DOWN"`), `REMOVE_VOTE`, `SET_PHASE`, `TOGGLE_BLUR`, `TIMER_CONTROL`, `TYPING_STATUS`, `ADD_ACTION_ITEM`, `UPDATE_ACTION_ITEM`, `CLEANUP_PRESENCE`.
 - Server vysílá zprávy typu `ServerMessage`:
   - `SYNC_STATE`: Kompletní stav retrospektivy (s aplikovaným server-side maskováním; zachovává lokální optimistické karty v letu).
   - `PRESENCE_UPDATE`: Seznam aktivních účastníků a indikátory psaní (deduplikovaný a memoizovaný, aby nedocházelo k poblikávání).

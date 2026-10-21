@@ -25,6 +25,7 @@ import {
   Eye,
   EyeOff,
   ThumbsUp,
+  ThumbsDown,
   Trash2,
   Plus,
   Play,
@@ -53,9 +54,12 @@ import { getRandomAnonymousName } from "../utils/names";
 // Draggable & Droppable Card Component
 interface DraggableCardProps {
   card: Card;
-  votesCount: number;
-  isVoted: boolean;
-  onVote: () => void;
+  score: number;
+  upvotesCount: number;
+  downvotesCount: number;
+  userVote: "UP" | "DOWN" | null;
+  onUpvote: () => void;
+  onDownvote: () => void;
   onDelete: () => void;
   isMasked?: boolean;
   isChild?: boolean;
@@ -65,9 +69,12 @@ interface DraggableCardProps {
 
 const DraggableCard: React.FC<DraggableCardProps> = ({
   card,
-  votesCount,
-  isVoted,
-  onVote,
+  score,
+  upvotesCount,
+  downvotesCount,
+  userVote,
+  onUpvote,
+  onDownvote,
   onDelete,
   isMasked = false,
   isChild = false,
@@ -235,27 +242,88 @@ const DraggableCard: React.FC<DraggableCardProps> = ({
             </button>
           )}
 
-          {/* Vote Button */}
-          <button
-            onClick={onVote}
-            title={isVoted ? "Odebrat hlas" : "Hlasovat"}
+          {/* Vote Controls (Palec nahoru / Skóre / Palec dolů) */}
+          <div
             style={{
-              padding: "4px 8px",
-              borderRadius: "var(--radius-sm)",
-              background: isVoted ? "var(--accent-indigo)" : "rgba(255, 255, 255, 0.05)",
-              color: isVoted ? "#ffffff" : "var(--text-main)",
-              display: "flex",
+              display: "inline-flex",
               alignItems: "center",
-              gap: "5px",
-              fontSize: "0.8rem",
-              fontWeight: 700,
+              background: "rgba(255, 255, 255, 0.04)",
+              borderRadius: "var(--radius-sm)",
               border: "1px solid var(--border-color)",
-              cursor: "pointer",
+              overflow: "hidden",
             }}
           >
-            <ThumbsUp size={13} />
-            <span>{votesCount}</span>
-          </button>
+            {/* Palec nahoru */}
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                onUpvote();
+              }}
+              title={userVote === "UP" ? "Odebrat palec nahoru" : "Dát palec nahoru (+1)"}
+              style={{
+                padding: "4px 7px",
+                background: userVote === "UP" ? "var(--accent-indigo)" : "transparent",
+                color: userVote === "UP" ? "#ffffff" : "var(--text-muted)",
+                border: "none",
+                cursor: "pointer",
+                display: "flex",
+                alignItems: "center",
+                gap: "4px",
+                fontSize: "0.8rem",
+                fontWeight: 600,
+                transition: "background 0.15s ease, color 0.15s ease",
+              }}
+            >
+              <ThumbsUp size={13} />
+            </button>
+
+            {/* Skóre kartičky (může jít do mínusu) */}
+            <span
+              style={{
+                padding: "0 6px",
+                fontSize: "0.8rem",
+                fontWeight: 700,
+                color:
+                  score > 0
+                    ? "var(--accent-indigo, #818cf8)"
+                    : score < 0
+                    ? "#f43f5e"
+                    : "var(--text-muted)",
+                minWidth: "20px",
+                textAlign: "center",
+              }}
+              title={`Skóre: ${score} (+${upvotesCount} / -${downvotesCount})`}
+            >
+              {score > 0 ? `+${score}` : score}
+            </span>
+
+            {/* Palec dolů */}
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                onDownvote();
+              }}
+              title={userVote === "DOWN" ? "Odebrat palec dolů" : "Dát palec dolů (-1)"}
+              style={{
+                padding: "4px 7px",
+                background: userVote === "DOWN" ? "#e11d48" : "transparent",
+                color: userVote === "DOWN" ? "#ffffff" : "var(--text-muted)",
+                border: "none",
+                borderLeft: "1px solid rgba(255, 255, 255, 0.08)",
+                cursor: "pointer",
+                display: "flex",
+                alignItems: "center",
+                gap: "4px",
+                fontSize: "0.8rem",
+                fontWeight: 600,
+                transition: "background 0.15s ease, color 0.15s ease",
+              }}
+            >
+              <ThumbsDown size={13} />
+            </button>
+          </div>
 
           {/* Delete Button */}
           <button
@@ -672,18 +740,30 @@ export const BoardView: React.FC<BoardViewProps> = ({ roomId, user, onBack, onUp
     );
   }
 
-  const getCardVotesCount = (cardId: string) => {
-    return state.votes.filter((v) => v.cardId === cardId).length;
+  const getCardVoteDetails = (cardId: string) => {
+    const cardVotes = state.votes.filter((v) => v.cardId === cardId);
+    const upvotes = cardVotes.filter((v) => v.voteType !== "DOWN").length;
+    const downvotes = cardVotes.filter((v) => v.voteType === "DOWN").length;
+    return {
+      score: upvotes - downvotes,
+      upvotes,
+      downvotes,
+    };
   };
 
   const getGroupTotalVotes = (rootCardId: string) => {
     const childIds = state.cards.filter((c) => c.parentCardId === rootCardId).map((c) => c.id);
     const allIds = [rootCardId, ...childIds];
-    return state.votes.filter((v) => allIds.includes(v.cardId)).length;
+    return state.votes.reduce((acc, v) => {
+      if (!allIds.includes(v.cardId)) return acc;
+      return acc + (v.voteType === "DOWN" ? -1 : 1);
+    }, 0);
   };
 
-  const hasUserVotedOnCard = (cardId: string) => {
-    return state.votes.some((v) => v.cardId === cardId && v.userSessionId === user.id);
+  const getUserVoteOnCard = (cardId: string): "UP" | "DOWN" | null => {
+    const vote = state.votes.find((v) => v.cardId === cardId && v.userSessionId === user.id);
+    if (!vote) return null;
+    return vote.voteType === "DOWN" ? "DOWN" : "UP";
   };
 
   const formatTimer = (totalSeconds: number | null) => {
@@ -1532,7 +1612,7 @@ export const BoardView: React.FC<BoardViewProps> = ({ roomId, user, onBack, onUp
                     const childCards = colAllCards.filter((c) => c.parentCardId === rootCard.id);
                     if (isSortedByVotes) {
                       childCards.sort((a, b) => {
-                        const diff = getCardVotesCount(b.id) - getCardVotesCount(a.id);
+                        const diff = getCardVoteDetails(b.id).score - getCardVoteDetails(a.id).score;
                         if (diff !== 0) return diff;
                         return (a.sortOrder ?? 0) - (b.sortOrder ?? 0);
                       });
@@ -1582,18 +1662,18 @@ export const BoardView: React.FC<BoardViewProps> = ({ roomId, user, onBack, onUp
                             >
                               <Layers size={14} />
                               <span>Skupina • {1 + childCards.length} myšlenky</span>
-                              {groupVotes > 0 && (
+                              {groupVotes !== 0 && (
                                 <span
                                   style={{
                                     fontSize: "0.7rem",
                                     padding: "1px 6px",
                                     borderRadius: "var(--radius-full)",
-                                    background: "rgba(99, 102, 241, 0.2)",
-                                    color: "var(--accent-indigo)",
+                                    background: groupVotes > 0 ? "rgba(99, 102, 241, 0.2)" : "rgba(244, 63, 94, 0.2)",
+                                    color: groupVotes > 0 ? "var(--accent-indigo)" : "#f43f5e",
                                     fontWeight: 700,
                                   }}
                                 >
-                                  {groupVotes} hl. celkem
+                                  {groupVotes > 0 ? `+${groupVotes}` : groupVotes} skóre celkem
                                 </span>
                               )}
                             </div>
@@ -1636,12 +1716,19 @@ export const BoardView: React.FC<BoardViewProps> = ({ roomId, user, onBack, onUp
                           {/* Hlavní karta skupiny */}
                           <DraggableCard
                             card={rootCard}
-                            votesCount={getCardVotesCount(rootCard.id)}
-                            isVoted={hasUserVotedOnCard(rootCard.id)}
-                            onVote={() =>
-                              hasUserVotedOnCard(rootCard.id)
-                                ? removeVote(rootCard.id)
-                                : castVote(rootCard.id)
+                            score={getCardVoteDetails(rootCard.id).score}
+                            upvotesCount={getCardVoteDetails(rootCard.id).upvotes}
+                            downvotesCount={getCardVoteDetails(rootCard.id).downvotes}
+                            userVote={getUserVoteOnCard(rootCard.id)}
+                            onUpvote={() =>
+                              getUserVoteOnCard(rootCard.id) === "UP"
+                                ? removeVote(rootCard.id, "UP")
+                                : castVote(rootCard.id, "UP")
+                            }
+                            onDownvote={() =>
+                              getUserVoteOnCard(rootCard.id) === "DOWN"
+                                ? removeVote(rootCard.id, "DOWN")
+                                : castVote(rootCard.id, "DOWN")
                             }
                             onDelete={() => deleteCard(rootCard.id)}
                             isMasked={rootCard.content === "••••••••••••"}
@@ -1664,12 +1751,19 @@ export const BoardView: React.FC<BoardViewProps> = ({ roomId, user, onBack, onUp
                                 <DraggableCard
                                   key={child.id}
                                   card={child}
-                                  votesCount={getCardVotesCount(child.id)}
-                                  isVoted={hasUserVotedOnCard(child.id)}
-                                  onVote={() =>
-                                    hasUserVotedOnCard(child.id)
-                                      ? removeVote(child.id)
-                                      : castVote(child.id)
+                                  score={getCardVoteDetails(child.id).score}
+                                  upvotesCount={getCardVoteDetails(child.id).upvotes}
+                                  downvotesCount={getCardVoteDetails(child.id).downvotes}
+                                  userVote={getUserVoteOnCard(child.id)}
+                                  onUpvote={() =>
+                                    getUserVoteOnCard(child.id) === "UP"
+                                      ? removeVote(child.id, "UP")
+                                      : castVote(child.id, "UP")
+                                  }
+                                  onDownvote={() =>
+                                    getUserVoteOnCard(child.id) === "DOWN"
+                                      ? removeVote(child.id, "DOWN")
+                                      : castVote(child.id, "DOWN")
                                   }
                                   onDelete={() => deleteCard(child.id)}
                                   isMasked={child.content === "••••••••••••"}
@@ -1689,12 +1783,19 @@ export const BoardView: React.FC<BoardViewProps> = ({ roomId, user, onBack, onUp
                       <DraggableCard
                         key={rootCard.id}
                         card={rootCard}
-                        votesCount={getCardVotesCount(rootCard.id)}
-                        isVoted={hasUserVotedOnCard(rootCard.id)}
-                        onVote={() =>
-                          hasUserVotedOnCard(rootCard.id)
-                            ? removeVote(rootCard.id)
-                            : castVote(rootCard.id)
+                        score={getCardVoteDetails(rootCard.id).score}
+                        upvotesCount={getCardVoteDetails(rootCard.id).upvotes}
+                        downvotesCount={getCardVoteDetails(rootCard.id).downvotes}
+                        userVote={getUserVoteOnCard(rootCard.id)}
+                        onUpvote={() =>
+                          getUserVoteOnCard(rootCard.id) === "UP"
+                            ? removeVote(rootCard.id, "UP")
+                            : castVote(rootCard.id, "UP")
+                        }
+                        onDownvote={() =>
+                          getUserVoteOnCard(rootCard.id) === "DOWN"
+                            ? removeVote(rootCard.id, "DOWN")
+                            : castVote(rootCard.id, "DOWN")
                         }
                         onDelete={() => deleteCard(rootCard.id)}
                         isMasked={rootCard.content === "••••••••••••"}

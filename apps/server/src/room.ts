@@ -104,6 +104,7 @@ export class RetroRoom extends DurableObject<Env> {
           id: v.id,
           cardId: v.cardId,
           userSessionId: v.userSessionId,
+          voteType: (v.voteType as "UP" | "DOWN") || "UP",
           createdAt: v.createdAt,
         }));
       }
@@ -402,6 +403,25 @@ export class RetroRoom extends DurableObject<Env> {
         }
 
         case "CAST_VOTE": {
+          const voteType = clientMsg.payload.voteType || "UP";
+          const existingVoteIndex = this.state.votes.findIndex(
+            (v) =>
+              v.cardId === clientMsg.payload.cardId &&
+              v.userSessionId === attachment.userId
+          );
+
+          if (existingVoteIndex !== -1) {
+            const existing = this.state.votes[existingVoteIndex];
+            if ((existing.voteType || "UP") === voteType) {
+              return;
+            } else {
+              existing.voteType = voteType;
+              this.broadcastState();
+              this.scheduleD1Flush();
+              return;
+            }
+          }
+
           // Atomická kontrola limitu hlasů na serveru
           const currentVotes = this.state.votes.filter(
             (v) => v.userSessionId === attachment.userId
@@ -416,6 +436,7 @@ export class RetroRoom extends DurableObject<Env> {
             id: crypto.randomUUID(),
             cardId: clientMsg.payload.cardId,
             userSessionId: attachment.userId,
+            voteType: voteType,
             createdAt: new Date().toISOString(),
           };
 
@@ -429,7 +450,8 @@ export class RetroRoom extends DurableObject<Env> {
           const voteIndex = this.state.votes.findIndex(
             (v) =>
               v.cardId === clientMsg.payload.cardId &&
-              v.userSessionId === attachment.userId
+              v.userSessionId === attachment.userId &&
+              (!clientMsg.payload.voteType || (v.voteType || "UP") === clientMsg.payload.voteType)
           );
 
           if (voteIndex !== -1) {
@@ -794,7 +816,7 @@ export class RetroRoom extends DurableObject<Env> {
           }
         }
 
-        // Vložit nové hlasy
+        // Vložit nové nebo aktualizovat změněné hlasy
         for (const vote of this.state.votes) {
           await db
             .insert(votes)
@@ -802,9 +824,15 @@ export class RetroRoom extends DurableObject<Env> {
               id: vote.id,
               cardId: vote.cardId,
               userSessionId: vote.userSessionId,
+              voteType: vote.voteType || "UP",
               createdAt: vote.createdAt,
             })
-            .onConflictDoNothing();
+            .onConflictDoUpdate({
+              target: votes.id,
+              set: {
+                voteType: vote.voteType || "UP",
+              },
+            });
         }
       }
 

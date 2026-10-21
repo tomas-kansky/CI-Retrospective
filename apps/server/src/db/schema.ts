@@ -46,6 +46,7 @@ export const votes = sqliteTable("votes", {
     .notNull()
     .references(() => cards.id, { onDelete: "cascade" }),
   userSessionId: text("user_session_id").notNull(),
+  voteType: text("vote_type").notNull().default("UP"),
   createdAt: text("created_at").notNull(),
 });
 

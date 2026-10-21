@@ -198,23 +198,71 @@ export function useRetroRoom({ roomId, user }: UseRetroRoomOptions) {
   );
 
   const castVote = useCallback(
-    (cardId: string) => {
+    (cardId: string, voteType: "UP" | "DOWN" = "UP") => {
+      // Optimistická aktualizace v UI
+      setState((prev) => {
+        if (!prev) return null;
+        const existingIdx = prev.votes.findIndex(
+          (v) => v.cardId === cardId && v.userSessionId === user.id
+        );
+        if (existingIdx !== -1) {
+          const updated = [...prev.votes];
+          updated[existingIdx] = {
+            ...updated[existingIdx],
+            voteType,
+          };
+          return { ...prev, votes: updated };
+        }
+        const userVotesCount = prev.votes.filter((v) => v.userSessionId === user.id).length;
+        if (userVotesCount >= (prev.maxVotesPerUser || 5)) return prev;
+
+        return {
+          ...prev,
+          votes: [
+            ...prev.votes,
+            {
+              id: "temp-vote-" + Date.now(),
+              cardId,
+              userSessionId: user.id,
+              voteType,
+              createdAt: new Date().toISOString(),
+            },
+          ],
+        };
+      });
+
       sendMessage({
         type: "CAST_VOTE",
-        payload: { cardId },
+        payload: { cardId, voteType },
       });
     },
-    [sendMessage]
+    [sendMessage, user.id]
   );
 
   const removeVote = useCallback(
-    (cardId: string) => {
+    (cardId: string, voteType?: "UP" | "DOWN") => {
+      // Optimistická aktualizace v UI
+      setState((prev) => {
+        if (!prev) return null;
+        return {
+          ...prev,
+          votes: prev.votes.filter(
+            (v) =>
+              !(
+                v.cardId === cardId &&
+                v.userSessionId === user.id &&
+                (!voteType || (v.voteType || "UP") === voteType)
+              )
+          ),
+        };
+      });
+
       sendMessage({
         type: "REMOVE_VOTE",
-        payload: { cardId },
+        payload: { cardId, voteType },
       });
     },
-    [sendMessage]
+    [sendMessage, user.id]
   );
 
   const setPhase = useCallback(

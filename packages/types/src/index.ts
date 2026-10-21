@@ -57,10 +57,14 @@ export const CardSchema = z.object({
 });
 export type Card = z.infer<typeof CardSchema>;
 
+export const VoteTypeSchema = z.enum(["UP", "DOWN"]);
+export type VoteType = z.infer<typeof VoteTypeSchema>;
+
 export const VoteSchema = z.object({
   id: z.string(),
   cardId: z.string(),
   userSessionId: z.string(),
+  voteType: VoteTypeSchema.default("UP"),
   createdAt: z.string(),
 });
 export type Vote = z.infer<typeof VoteSchema>;
@@ -153,12 +157,14 @@ export const ClientMessageSchema = z.discriminatedUnion("type", [
     type: z.literal("CAST_VOTE"),
     payload: z.object({
       cardId: z.string(),
+      voteType: VoteTypeSchema.default("UP").optional(),
     }),
   }),
   z.object({
     type: z.literal("REMOVE_VOTE"),
     payload: z.object({
       cardId: z.string(),
+      voteType: VoteTypeSchema.optional(),
     }),
   }),
   z.object({
