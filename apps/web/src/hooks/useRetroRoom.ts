@@ -22,6 +22,7 @@ export function useRetroRoom({ roomId, user }: UseRetroRoomOptions) {
 
   const socketRef = useRef<WebSocket | null>(null);
   const reconnectTimeoutRef = useRef<any>(null);
+  const messageQueueRef = useRef<ClientMessage[]>([]);
 
   const connect = useCallback(() => {
     if (!roomId) return;
@@ -45,6 +46,14 @@ export function useRetroRoom({ roomId, user }: UseRetroRoomOptions) {
     ws.onopen = () => {
       setIsConnected(true);
       setLastError(null);
+
+      // Odeslat případné čekající zprávy nahromaděné během reconnectu
+      while (messageQueueRef.current.length > 0) {
+        const queued = messageQueueRef.current.shift();
+        if (queued && ws.readyState === WebSocket.OPEN) {
+          ws.send(JSON.stringify(queued));
+        }
+      }
     };
 
     ws.onmessage = (event) => {
@@ -53,12 +62,43 @@ export function useRetroRoom({ roomId, user }: UseRetroRoomOptions) {
 
         switch (msg.type) {
           case "SYNC_STATE":
-            setState(msg.payload);
+            setState((prev) => {
+              if (!prev) return msg.payload;
+              // Zachováme lokální optimistické karty, které server ještě nestihl propsat
+              const serverCardIds = new Set(msg.payload.cards.map((c) => c.id));
+              const pendingLocalCards = prev.cards.filter(
+                (c) => c.authorSessionId === user.id && !serverCardIds.has(c.id)
+              );
+              return {
+                ...msg.payload,
+                cards: [...msg.payload.cards, ...pendingLocalCards],
+              };
+            });
             break;
 
           case "PRESENCE_UPDATE":
-            setOnlineUsers(msg.payload.users);
-            setTypingUsers(msg.payload.typingUsers);
+            setOnlineUsers((prev) => {
+              if (
+                prev.length === msg.payload.users.length &&
+                prev.every((u, i) => u.id === msg.payload.users[i]?.id && u.name === msg.payload.users[i]?.name)
+              ) {
+                return prev;
+              }
+              return msg.payload.users;
+            });
+            setTypingUsers((prev) => {
+              if (
+                prev.length === msg.payload.typingUsers.length &&
+                prev.every(
+                  (t, i) =>
+                    t.userId === msg.payload.typingUsers[i]?.userId &&
+                    t.columnId === msg.payload.typingUsers[i]?.columnId
+                )
+              ) {
+                return prev;
+              }
+              return msg.payload.typingUsers;
+            });
             break;
 
           case "STATE_PATCH":
@@ -98,18 +138,22 @@ export function useRetroRoom({ roomId, user }: UseRetroRoomOptions) {
     };
   }, [connect]);
 
-  // Odesílání typovaných zpráv na server
+  // Odesílání typovaných zpráv na server s podporou offline fronty
   const sendMessage = useCallback((msg: ClientMessage) => {
     if (socketRef.current && socketRef.current.readyState === WebSocket.OPEN) {
       socketRef.current.send(JSON.stringify(msg));
+    } else {
+      // Pokud socket není právě otevřen (např. při reconnectu), zařadíme zprávu do fronty
+      messageQueueRef.current.push(msg);
     }
   }, []);
 
   // Pomocné akce pro komponenty
   const addCard = useCallback(
     (columnId: string, content: string, isAnonymous: boolean = false) => {
+      const cardId = crypto.randomUUID();
       const optimisticCard: Card = {
-        id: crypto.randomUUID(),
+        id: cardId,
         columnId,
         parentCardId: null,
         authorSessionId: isAnonymous ? "anonymous" : user.id,
@@ -124,7 +168,7 @@ export function useRetroRoom({ roomId, user }: UseRetroRoomOptions) {
 
       sendMessage({
         type: "ADD_CARD",
-        payload: { columnId, content, isAnonymous },
+        payload: { id: cardId, columnId, content, isAnonymous },
       });
     },
     [sendMessage, user.id, user.name, state?.cards?.length]

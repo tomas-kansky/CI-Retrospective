@@ -117,14 +117,17 @@ Každá retrospektiva prochází těmito fázemi (`RetroPhase`):
 - Klient odesílá zprávy typu `ClientMessage` (validováno přes `ClientMessageSchema` v `packages/types`):
   - `JOIN`, `ADD_CARD`, `UPDATE_CARD`, `DELETE_CARD`, `MOVE_CARD`, `GROUP_CARDS`, `UNGROUP_CARD`, `VOTE`, `REMOVE_VOTE`, `SET_PHASE`, `TOGGLE_BLUR`, `CONTROL_TIMER`, `SET_TYPING`, `ADD_ACTION_ITEM`, `UPDATE_ACTION_ITEM`, `CLEANUP_PRESENCE`.
 - Server vysílá zprávy typu `ServerMessage`:
-  - `SYNC_STATE`: Kompletní stav retrospektivy (s aplikovaným server-side maskováním).
-  - `PRESENCE_UPDATE`: Seznam aktivních účastníků a indikátory psaní.
+  - `SYNC_STATE`: Kompletní stav retrospektivy (s aplikovaným server-side maskováním; zachovává lokální optimistické karty v letu).
+  - `PRESENCE_UPDATE`: Seznam aktivních účastníků a indikátory psaní (deduplikovaný a memoizovaný, aby nedocházelo k poblikávání).
   - `ERROR`: Chybová hlášení pro klienta.
 
-### 3.3 Automatické čištění přítomnosti (Presence Cleanup)
-- Každé spojení eviduje `lastSeen = Date.now()`.
+### 3.3 Indikace psaní a automatické čištění přítomnosti (Presence & Typing Management)
+- **Throttling psaní**: Klient odesílá `TYPING_STATUS` s throttlem (maximálně jednou při zahájení psaní, nikoliv na každý úhoz). Server broadcastuje změnu pouze při reálné změně sloupce. Po 2,5 s neaktivity se indikátor automaticky resetuje.
+- **Offline Message Queue**: Hook `useRetroRoom.ts` disponuje frontou zpráv (`messageQueueRef`). Pokud je spojení v procesu reconnectu, akce (např. přidání karty) se nezahodí, ale automaticky odešlou okamžitě po otevření socketu.
+- **Sledování aktivity**: Každé spojení eviduje `lastSeen = Date.now()`.
 - Klient v hooku `useRetroRoom.ts` automaticky odesílá `CLEANUP_PRESENCE` každé **3 minuty** (a při `visibilitychange` návratu na záložku).
-- Server odpojí pouze neaktivní zombie relace (starší než 3,5 minuty) a zachová aktivní účastníky bez výpadku spojení.
+- Server vynechá neaktivní zombie relace (starší než 3,5 minuty) a zachovává aktivní účastníky bez výpadku spojení.
+
 
 ---
 

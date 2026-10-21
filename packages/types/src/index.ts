@@ -105,6 +105,7 @@ export const ClientMessageSchema = z.discriminatedUnion("type", [
   z.object({
     type: z.literal("ADD_CARD"),
     payload: z.object({
+      id: z.string().optional(),
       columnId: z.string(),
       content: z.string(),
       isAnonymous: z.boolean().default(false),

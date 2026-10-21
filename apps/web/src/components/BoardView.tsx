@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import {
   DndContext,
   useDroppable,
@@ -475,11 +475,48 @@ export const BoardView: React.FC<BoardViewProps> = ({ roomId, user, onBack, onUp
     return () => clearInterval(interval);
   }, [state?.timerEndsAt]);
 
+  // Throttled typing indicator refs
+  const typingTimeoutRef = useRef<any>(null);
+  const isTypingActiveRef = useRef<boolean>(false);
+
+  const handleCardTextChange = (columnId: string, text: string) => {
+    setNewCardText(text);
+
+    if (typingTimeoutRef.current) {
+      clearTimeout(typingTimeoutRef.current);
+    }
+
+    if (!isTypingActiveRef.current) {
+      isTypingActiveRef.current = true;
+      setTyping(columnId, true);
+    }
+
+    // Automaticky vypnout indikátor psaní po 2.5s neaktivity
+    typingTimeoutRef.current = setTimeout(() => {
+      isTypingActiveRef.current = false;
+      setTyping(columnId, false);
+    }, 2500);
+  };
+
   const handleAddCardSubmit = (columnId: string) => {
     if (!newCardText.trim()) return;
+    if (typingTimeoutRef.current) {
+      clearTimeout(typingTimeoutRef.current);
+    }
+    isTypingActiveRef.current = false;
     addCard(columnId, newCardText, isAnonymous);
     setNewCardText("");
     setActiveNewCardColumn(null);
+    setTyping(columnId, false);
+  };
+
+  const handleCancelNewCard = (columnId: string) => {
+    if (typingTimeoutRef.current) {
+      clearTimeout(typingTimeoutRef.current);
+    }
+    isTypingActiveRef.current = false;
+    setActiveNewCardColumn(null);
+    setNewCardText("");
     setTyping(columnId, false);
   };
 
@@ -1705,10 +1742,7 @@ export const BoardView: React.FC<BoardViewProps> = ({ roomId, user, onBack, onUp
                         rows={3}
                         placeholder="Napište myšlenku... (Ctrl+Enter pro odeslání)"
                         value={newCardText}
-                        onChange={(e) => {
-                          setNewCardText(e.target.value);
-                          setTyping(column.id, true);
-                        }}
+                        onChange={(e) => handleCardTextChange(column.id, e.target.value)}
                         onKeyDown={(e) => {
                           if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) {
                             handleAddCardSubmit(column.id);
@@ -1739,11 +1773,7 @@ export const BoardView: React.FC<BoardViewProps> = ({ roomId, user, onBack, onUp
                         <div style={{ display: "flex", gap: "6px" }}>
                           <button
                             type="button"
-                            onClick={() => {
-                              setActiveNewCardColumn(null);
-                              setNewCardText("");
-                              setTyping(column.id, false);
-                            }}
+                            onClick={() => handleCancelNewCard(column.id)}
                             style={{
                               padding: "6px 10px",
                               borderRadius: "var(--radius-sm)",

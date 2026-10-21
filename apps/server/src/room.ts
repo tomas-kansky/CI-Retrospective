@@ -180,16 +180,6 @@ export class RetroRoom extends DurableObject<Env> {
         lastSeen: Date.now(),
       };
 
-      // Uzavřeme jakákoliv předchozí otevřená spojení se stejným userId (zamezí zaseknutým duplikátům)
-      try {
-        const oldSockets = this.ctx.getWebSockets(userId);
-        for (const oldWs of oldSockets) {
-          try {
-            oldWs.close(1000, "Replaced by newer connection");
-          } catch {}
-        }
-      } catch {}
-
       this.ctx.acceptWebSocket(server, [userId]);
       server.serializeAttachment(attachment);
 
@@ -282,7 +272,7 @@ export class RetroRoom extends DurableObject<Env> {
 
         case "ADD_CARD": {
           const newCard: Card = {
-            id: crypto.randomUUID(),
+            id: clientMsg.payload.id || crypto.randomUUID(),
             columnId: clientMsg.payload.columnId,
             parentCardId: null,
             authorSessionId: clientMsg.payload.isAnonymous ? "anonymous" : attachment.userId,
@@ -526,11 +516,16 @@ export class RetroRoom extends DurableObject<Env> {
         }
 
         case "TYPING_STATUS": {
-          attachment.typingColumnId = clientMsg.payload.isTyping
+          const newColumnId = clientMsg.payload.isTyping
             ? clientMsg.payload.columnId
             : undefined;
-          ws.serializeAttachment(attachment);
-          this.broadcastPresence();
+
+          // Broadcast přítomnosti provádíme pouze tehdy, pokud se stav psaní pro daného uživatele změnil
+          if (attachment.typingColumnId !== newColumnId) {
+            attachment.typingColumnId = newColumnId;
+            ws.serializeAttachment(attachment);
+            this.broadcastPresence();
+          }
           break;
         }
 
@@ -649,19 +644,13 @@ export class RetroRoom extends DurableObject<Env> {
     for (const ws of sockets) {
       // Filtrujeme pouze aktivní otevřená spojení
       if (ws.readyState !== 1) {
-        try {
-          ws.close();
-        } catch {}
         continue;
       }
 
       const att = ws.deserializeAttachment() as SocketAttachment;
       if (att && att.userId) {
-        // Kontrola nečinnosti: pokud je spojení neaktivní déle než časový limit, uzavřeme ho a vynecháme
+        // Kontrola nečinnosti: pokud je spojení neaktivní déle než časový limit, vynecháme ze zobrazení
         if (att.lastSeen && now - att.lastSeen > INACTIVITY_TIMEOUT_MS) {
-          try {
-            ws.close(4000, "Presence cleanup: Inactivity timeout");
-          } catch {}
           continue;
         }
 
