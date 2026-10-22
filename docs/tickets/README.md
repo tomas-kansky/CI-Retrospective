@@ -19,7 +19,8 @@ docs/tickets/
 1. **`status: open`** – Nově nahlášená chyba čekající na zpracování.
 2. **`status: in_progress`** – Chyba je v řešení (vývojář nebo AI agent provádí analýzu a kódové změny).
 3. **`status: resolved`** – Oprava je naimplementována, otestována a commitnuta do gitu.
-4. **`status: closed`** – Ticket je definitivně uzavřen.
+4. **`status: invalid-bug`** – Nevalidní / testovací hlášení bez akčních dat k opravě.
+5. **`status: closed`** – Ticket je definitivně uzavřen.
 
 ---
 
