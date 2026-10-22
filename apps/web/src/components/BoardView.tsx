@@ -25,6 +25,7 @@ import {
   ThumbsUp,
   ThumbsDown,
   Trash2,
+  Pencil,
   Plus,
   Play,
   Pause,
@@ -57,6 +58,8 @@ interface DraggableCardProps {
   onUpvote: () => void;
   onDownvote: () => void;
   onDelete: () => void;
+  canEdit?: boolean;
+  onUpdate?: (newContent: string) => void;
   isMasked?: boolean;
   isChild?: boolean;
   onUngroup?: () => void;
@@ -72,11 +75,35 @@ const DraggableCard: React.FC<DraggableCardProps> = ({
   onUpvote,
   onDownvote,
   onDelete,
+  canEdit = false,
+  onUpdate,
   isMasked = false,
   isChild = false,
   onUngroup,
   activeDragCardId,
 }) => {
+  const [isEditing, setIsEditing] = useState(false);
+  const [editText, setEditText] = useState(card.content);
+
+  useEffect(() => {
+    if (!isEditing) {
+      setEditText(card.content);
+    }
+  }, [card.content, isEditing]);
+
+  const handleSaveEdit = () => {
+    const trimmed = editText.trim().slice(0, 255);
+    if (!trimmed) return;
+    if (trimmed !== card.content && onUpdate) {
+      onUpdate(trimmed);
+    }
+    setIsEditing(false);
+  };
+
+  const handleCancelEdit = () => {
+    setEditText(card.content);
+    setIsEditing(false);
+  };
   const { attributes, listeners, setNodeRef: setDraggableRef, isDragging } = useDraggable({
     id: `drag-${card.id}`,
     data: { type: "CARD", card },
@@ -179,21 +206,123 @@ const DraggableCard: React.FC<DraggableCardProps> = ({
           <GripVertical size={18} />
         </div>
 
-        {/* Card Content with Safe Blur */}
-        <p
-          style={{
-            flex: 1,
-            fontSize: isChild ? "0.88rem" : "0.92rem",
-            lineHeight: "1.45",
-            margin: 0,
-            wordBreak: "break-word",
-            filter: isMasked ? "blur(3px)" : "none",
-            userSelect: isMasked ? "none" : "text",
-            opacity: isMasked ? 0.6 : 1,
-          }}
-        >
-          {card.content}
-        </p>
+        {/* Card Content with Safe Blur or Inline Edit */}
+        {isEditing ? (
+          <div
+            onPointerDown={(e) => e.stopPropagation()}
+            onKeyDown={(e) => e.stopPropagation()}
+            style={{
+              flex: 1,
+              display: "flex",
+              flexDirection: "column",
+              gap: "8px",
+            }}
+          >
+            <textarea
+              autoFocus
+              rows={3}
+              maxLength={255}
+              value={editText}
+              onChange={(e) => setEditText(e.target.value.slice(0, 255))}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) {
+                  e.preventDefault();
+                  handleSaveEdit();
+                } else if (e.key === "Escape") {
+                  e.preventDefault();
+                  handleCancelEdit();
+                }
+              }}
+              style={{
+                width: "100%",
+                padding: "8px 10px",
+                borderRadius: "var(--radius-sm)",
+                background: "var(--bg-card)",
+                border: "1px solid var(--accent-indigo)",
+                color: "var(--text-main)",
+                fontSize: isChild ? "0.86rem" : "0.9rem",
+                lineHeight: "1.45",
+                resize: "vertical",
+                fontFamily: "inherit",
+              }}
+            />
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+              <span
+                style={{
+                  fontSize: "0.72rem",
+                  color:
+                    editText.length >= 255
+                      ? "var(--accent-rose)"
+                      : editText.length >= 230
+                      ? "var(--accent-amber, #f59e0b)"
+                      : "var(--text-dim)",
+                  fontWeight: editText.length >= 230 ? 600 : 400,
+                }}
+              >
+                {editText.length}/255
+              </span>
+              <div style={{ display: "flex", gap: "6px" }}>
+                <button
+                  type="button"
+                  onClick={handleCancelEdit}
+                  style={{
+                    padding: "4px 8px",
+                    borderRadius: "var(--radius-sm)",
+                    background: "transparent",
+                    color: "var(--text-muted)",
+                    border: "1px solid var(--border-color)",
+                    fontSize: "0.75rem",
+                    fontWeight: 600,
+                    cursor: "pointer",
+                  }}
+                >
+                  Zrušit
+                </button>
+                <button
+                  type="button"
+                  onClick={handleSaveEdit}
+                  disabled={!editText.trim()}
+                  style={{
+                    padding: "4px 10px",
+                    borderRadius: "var(--radius-sm)",
+                    background: "var(--accent-indigo)",
+                    color: "#ffffff",
+                    border: "none",
+                    fontSize: "0.75rem",
+                    fontWeight: 600,
+                    cursor: editText.trim() ? "pointer" : "not-allowed",
+                    opacity: editText.trim() ? 1 : 0.5,
+                  }}
+                >
+                  Uložit
+                </button>
+              </div>
+            </div>
+          </div>
+        ) : (
+          <p
+            onDoubleClick={() => {
+              if (canEdit && !isMasked) {
+                setEditText(card.content);
+                setIsEditing(true);
+              }
+            }}
+            title={canEdit && !isMasked ? "Dvojklikem upravíte text karty" : undefined}
+            style={{
+              flex: 1,
+              fontSize: isChild ? "0.88rem" : "0.92rem",
+              lineHeight: "1.45",
+              margin: 0,
+              wordBreak: "break-word",
+              filter: isMasked ? "blur(3px)" : "none",
+              userSelect: isMasked ? "none" : "text",
+              opacity: isMasked ? 0.6 : 1,
+              cursor: canEdit && !isMasked ? "text" : "default",
+            }}
+          >
+            {card.content}
+          </p>
+        )}
       </div>
 
       {/* Card Footer: Author + Actions */}
@@ -321,6 +450,30 @@ const DraggableCard: React.FC<DraggableCardProps> = ({
             </button>
           </div>
 
+          {/* Edit Button (pouze pro autora karty) */}
+          {canEdit && !isMasked && !isEditing && (
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                setEditText(card.content);
+                setIsEditing(true);
+              }}
+              title="Upravit kartu"
+              style={{
+                background: "transparent",
+                color: "var(--text-dim)",
+                padding: "4px",
+                border: "none",
+                cursor: "pointer",
+                display: "flex",
+                alignItems: "center",
+              }}
+            >
+              <Pencil size={13} />
+            </button>
+          )}
+
           {/* Delete Button */}
           <button
             onClick={onDelete}
@@ -391,6 +544,7 @@ export const BoardView: React.FC<BoardViewProps> = ({ roomId, user, onBack, onUp
     lastError,
     remainingVotes,
     addCard,
+    updateCard,
     deleteCard,
     moveCard,
     groupCards,
@@ -1630,6 +1784,8 @@ export const BoardView: React.FC<BoardViewProps> = ({ roomId, user, onBack, onUp
                                 : castVote(rootCard.id, "DOWN")
                             }
                             onDelete={() => deleteCard(rootCard.id)}
+                            canEdit={rootCard.authorSessionId === user.id}
+                            onUpdate={(newContent) => updateCard(rootCard.id, newContent)}
                             isMasked={rootCard.content === "••••••••••••"}
                             activeDragCardId={activeCard?.id || null}
                           />
@@ -1665,6 +1821,8 @@ export const BoardView: React.FC<BoardViewProps> = ({ roomId, user, onBack, onUp
                                       : castVote(child.id, "DOWN")
                                   }
                                   onDelete={() => deleteCard(child.id)}
+                                  canEdit={child.authorSessionId === user.id}
+                                  onUpdate={(newContent) => updateCard(child.id, newContent)}
                                   isMasked={child.content === "••••••••••••"}
                                   isChild={true}
                                   onUngroup={() => ungroupCard(child.id)}
@@ -1697,6 +1855,8 @@ export const BoardView: React.FC<BoardViewProps> = ({ roomId, user, onBack, onUp
                             : castVote(rootCard.id, "DOWN")
                         }
                         onDelete={() => deleteCard(rootCard.id)}
+                        canEdit={rootCard.authorSessionId === user.id}
+                        onUpdate={(newContent) => updateCard(rootCard.id, newContent)}
                         isMasked={rootCard.content === "••••••••••••"}
                         activeDragCardId={activeCard?.id || null}
                       />

@@ -289,7 +289,7 @@ export class RetroRoom extends DurableObject<Env> {
             id: clientMsg.payload.id || crypto.randomUUID(),
             columnId: clientMsg.payload.columnId,
             parentCardId: null,
-            authorSessionId: clientMsg.payload.isAnonymous ? "anonymous" : attachment.userId,
+            authorSessionId: attachment.userId,
             authorName: clientMsg.payload.isAnonymous ? "Anonym" : attachment.name,
             content: clientMsg.payload.content.trim().slice(0, 255),
             sortOrder: this.state.cards.length,
@@ -308,12 +308,16 @@ export class RetroRoom extends DurableObject<Env> {
             this.sendError(ws, "Karta nenalezena");
             return;
           }
-          // Pouze autor nebo facilitátor může upravit kartu
-          if (card.authorSessionId !== attachment.userId && !attachment.isFacilitator) {
-            this.sendError(ws, "Nemáte oprávnění upravit tuto kartu");
+          // Upravit kartu může výhradně uživatel, který ji přidal
+          if (card.authorSessionId !== attachment.userId) {
+            this.sendError(ws, "Upravit kartu může pouze uživatel, který ji přidal");
             return;
           }
-          card.content = clientMsg.payload.content.trim().slice(0, 255);
+          const updatedContent = clientMsg.payload.content.trim().slice(0, 255);
+          if (!updatedContent) {
+            return;
+          }
+          card.content = updatedContent;
           this.broadcastState();
           this.scheduleD1Flush();
           break;

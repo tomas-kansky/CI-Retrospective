@@ -2,7 +2,7 @@
 id: "BUG-20261022-966"
 title: "Přidat možnost upravit text na kartě"
 type: "ux"
-status: "open"
+status: "resolved"
 priority: "medium"
 createdAt: "2026-10-22T12:17:03.156Z"
 author:
@@ -44,6 +44,6 @@ Jakmile je karta uložena, tak jí už nemůžu změnit, chtěl bych, abych měl
 
 ## 🛠️ Návrh řešení & Historie oprav
 *(Tuto sekci doplňuje řešitel při opravě)*
-- **Příčina**: 
-- **Změny**: 
-- **Commit**: 
+- **Příčina**: V komponentě `DraggableCard` v `apps/web/src/components/BoardView.tsx` chybělo uživatelské rozhraní pro inline úpravu uložené karty a napojení na akci `updateCard`. Na serveru v `apps/server/src/room.ts` navíc oprávnění `UPDATE_CARD` povolovalo úpravu komukoliv s příznakem `isFacilitator` (který mají ve výchozím stavu všichni uživatelé), a u anonymně přidaných karet se `authorSessionId` přepisovalo na `"anonymous"`, čímž autor přicházel o vazbu na svou kartu.
+- **Změny**: V `apps/web/src/components/BoardView.tsx` přidáno tlačítko s ikonou tužky (`Pencil`) a podpora dvojkliku na text karty pro přepnutí do inline editačního režimu (`<textarea>` s limitem 255 znaků, počítadlem `${editText.length}/255`, zkratkami `Ctrl+Enter` / `Escape` a tlačítky `Uložit` / `Zrušit`). Možnost úpravy (`canEdit`) se zobrazuje výhradně autorovi karty (`card.authorSessionId === user.id`). V `apps/web/src/hooks/useRetroRoom.ts` doplněna optimistická aktualizace stavu v `updateCard` a zachování `authorSessionId: user.id` i při anonymním zobrazení jména (`authorName: "Anonym"`). V `apps/server/src/room.ts` upraven handler `UPDATE_CARD`, aby povolil úpravu výhradně autorovi (`card.authorSessionId === attachment.userId`).
+- **Commit**: `fix: resolve BUG-20261022-966 allow card author to edit card text`

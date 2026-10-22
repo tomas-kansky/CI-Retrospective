@@ -252,7 +252,7 @@ export function useRetroRoom({ roomId, user }: UseRetroRoomOptions) {
         id: cardId,
         columnId,
         parentCardId: null,
-        authorSessionId: isAnonymous ? "anonymous" : user.id,
+        authorSessionId: user.id,
         authorName: isAnonymous ? "Anonym" : user.name,
         content: trimmedContent,
         sortOrder: state?.cards?.length || 0,
@@ -274,6 +274,19 @@ export function useRetroRoom({ roomId, user }: UseRetroRoomOptions) {
     (cardId: string, content: string) => {
       const trimmedContent = content.trim().slice(0, 255);
       if (!trimmedContent) return;
+
+      // Optimistická aktualizace textu karty v UI
+      setState((prev) =>
+        prev
+          ? {
+              ...prev,
+              cards: prev.cards.map((c) =>
+                c.id === cardId ? { ...c, content: trimmedContent } : c
+              ),
+            }
+          : null
+      );
+
       sendMessage({
         type: "UPDATE_CARD",
         payload: { cardId, content: trimmedContent },
