@@ -8,7 +8,7 @@ export const retrospectives = sqliteTable("retrospectives", {
   phase: text("phase").notNull().default("BRAINSTORMING"),
   templateType: text("template_type").notNull().default("WENT_WELL_TO_IMPROVE"),
   maxVotesPerUser: integer("max_votes_per_user").notNull().default(5),
-  cardsBlurred: integer("cards_blurred", { mode: "boolean" }).notNull().default(true),
+  cardsBlurred: integer("cards_blurred", { mode: "boolean" }).notNull().default(false),
   timerEndsAt: integer("timer_ends_at"),
   timerDurationSecs: integer("timer_duration_secs").notNull().default(300),
   accessCode: text("access_code"),

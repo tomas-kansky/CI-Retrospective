@@ -2,7 +2,7 @@
 id: "BUG-20261022-471"
 title: "Odebrání tlačítek"
 type: "ux"
-status: "open"
+status: "resolved"
 priority: "medium"
 createdAt: "2026-10-22T12:12:46.325Z"
 author:
@@ -46,6 +46,9 @@ Odebrat tlačítko Export
 
 ## 🛠️ Návrh řešení & Historie oprav
 *(Tuto sekci doplňuje řešitel při opravě)*
-- **Příčina**: 
-- **Změny**: 
-- **Commit**: 
+- **Příčina**: Přebytečné ovládací prvky v horní liště retrospektivy (picklist fází, štítek stavu/fáze, přepínač Maskováno/Viditelné a tlačítko Export), které tým při moderaci nepoužívá.
+- **Změny**:
+  - V `apps/web/src/components/BoardView.tsx` odstraněn výběrový `<select>` fází, štítek fáze pod názvem tabule, tlačítko `Maskováno / Viditelné` a tlačítko `Export`.
+  - V `apps/web/src/App.tsx` odstraněn štítek fáze z přehledových karet retrospektiv na dashboardu.
+  - V `apps/server/src/index.ts`, `apps/server/src/db/schema.ts` a `apps/server/src/room.ts` vypnuto výchozí maskování karet (`cardsBlurred: false`), aby karty všech účastníků byly ihned viditelné bez nutnosti přepínat fázi nebo odmaskovávat.
+- **Commit**: `fix: resolve BUG-20261022-471 remove phase picklist, blur and export buttons`

@@ -144,7 +144,7 @@ app.post("/api/retrospectives", async (c) => {
     phase: "BRAINSTORMING",
     templateType,
     maxVotesPerUser: maxVotes,
-    cardsBlurred: true,
+    cardsBlurred: false,
     timerEndsAt: null,
     timerDurationSecs: 300,
     createdAt: now,

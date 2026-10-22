@@ -22,8 +22,6 @@ import {
   Clock,
   ChevronDown,
   ChevronUp,
-  Eye,
-  EyeOff,
   ThumbsUp,
   ThumbsDown,
   Trash2,
@@ -34,7 +32,6 @@ import {
   Users,
   Check,
   AlertCircle,
-  FileDown,
   Target,
   GripVertical,
   Layers,
@@ -43,9 +40,8 @@ import {
   Bug,
   ArrowDownWideNarrow,
 } from "lucide-react";
-import type { UserSession, RetroPhase, Card, Column } from "@ci-retro/types";
+import type { UserSession, Card, Column } from "@ci-retro/types";
 import { useRetroRoom } from "../hooks/useRetroRoom";
-import { ExportModal } from "./ExportModal";
 import { ShareModal } from "./ShareModal";
 import { ActionItemsDrawer } from "./ActionItemsDrawer";
 import { BugReportModal } from "./BugReportModal";
@@ -401,8 +397,6 @@ export const BoardView: React.FC<BoardViewProps> = ({ roomId, user, onBack, onUp
     ungroupCard,
     castVote,
     removeVote,
-    setPhase,
-    toggleBlur,
     controlTimer,
     setTyping,
     addActionItem,
@@ -450,7 +444,6 @@ export const BoardView: React.FC<BoardViewProps> = ({ roomId, user, onBack, onUp
   };
 
   // Modály
-  const [isExportOpen, setIsExportOpen] = useState(false);
   const [isShareOpen, setIsShareOpen] = useState(false);
   const [isActionItemsOpen, setIsActionItemsOpen] = useState(false);
   const [isBugReportOpen, setIsBugReportOpen] = useState(false);
@@ -463,26 +456,6 @@ export const BoardView: React.FC<BoardViewProps> = ({ roomId, user, onBack, onUp
 
   // Řazení karet dle počtu udělených hlasů
   const [isSortedByVotes, setIsSortedByVotes] = useState<boolean>(false);
-  const prevPhaseRef = React.useRef<RetroPhase | undefined>(undefined);
-
-  useEffect(() => {
-    if (!state?.phase) return;
-    if (prevPhaseRef.current === undefined) {
-      // Výchozí stav při prvním načtení: ve fázi hlasování a diskuze je řazení automaticky zapnuto
-      if (state.phase === "VOTING" || state.phase === "DISCUSSION") {
-        setIsSortedByVotes(true);
-      }
-      prevPhaseRef.current = state.phase;
-    } else if (prevPhaseRef.current !== state.phase) {
-      // Při přepnutí do VOTING/DISCUSSION zapneme řazení, při návratu do předchozích fází vypneme
-      if (state.phase === "VOTING" || state.phase === "DISCUSSION") {
-        setIsSortedByVotes(true);
-      } else if (state.phase === "BRAINSTORMING" || state.phase === "GROUPING") {
-        setIsSortedByVotes(false);
-      }
-      prevPhaseRef.current = state.phase;
-    }
-  }, [state?.phase]);
 
   // Synchronizace délky z načteného stavu
   useEffect(() => {
@@ -702,15 +675,6 @@ export const BoardView: React.FC<BoardViewProps> = ({ roomId, user, onBack, onUp
     }
   };
 
-  const phaseLabels: Record<RetroPhase, { title: string; color: string }> = {
-    BRAINSTORMING: { title: "1. Brainstorming", color: "var(--accent-indigo)" },
-    GROUPING: { title: "2. Seskupování", color: "var(--accent-cyan)" },
-    VOTING: { title: "3. Hlasování", color: "var(--accent-amber)" },
-    DISCUSSION: { title: "4. Diskuze & Časovač", color: "var(--accent-emerald)" },
-    ACTION_ITEMS: { title: "5. Akční kroky", color: "var(--accent-rose)" },
-    ARCHIVED: { title: "Uzavřeno (Archiv)", color: "var(--text-dim)" },
-  };
-
   if (!state) {
     return (
       <div
@@ -835,18 +799,6 @@ export const BoardView: React.FC<BoardViewProps> = ({ roomId, user, onBack, onUp
                 {state.title}
               </h2>
               <div style={{ display: "flex", alignItems: "center", gap: "10px", marginTop: "2px" }}>
-                <span
-                  style={{
-                    fontSize: "0.75rem",
-                    padding: "2px 8px",
-                    borderRadius: "var(--radius-full)",
-                    background: phaseLabels[state.phase]?.color + "22",
-                    color: phaseLabels[state.phase]?.color,
-                    fontWeight: 700,
-                  }}
-                >
-                  {phaseLabels[state.phase]?.title}
-                </span>
                 <span style={{ fontSize: "0.75rem", color: "var(--text-muted)" }}>
                   Max hlasů: {state.maxVotesPerUser}
                 </span>
@@ -854,51 +806,8 @@ export const BoardView: React.FC<BoardViewProps> = ({ roomId, user, onBack, onUp
             </div>
           </div>
 
-          {/* Action Controls: Phase, Timer, Blur, Votes, Action Items, Export */}
+          {/* Action Controls: Sort, Timer, Votes, Action Items, Share, Bug Report */}
           <div style={{ display: "flex", alignItems: "center", gap: "10px", flexWrap: "wrap" }}>
-            {/* Phase Selector */}
-            <select
-              value={state.phase}
-              onChange={(e) => setPhase(e.target.value as RetroPhase)}
-              style={{
-                padding: "6px 12px",
-                borderRadius: "var(--radius-sm)",
-                background: "var(--bg-card)",
-                border: "1px solid var(--border-color)",
-                color: "var(--text-main)",
-                fontSize: "0.85rem",
-                fontWeight: 600,
-              }}
-            >
-              <option value="BRAINSTORMING">1. Brainstorming</option>
-              <option value="GROUPING">2. Seskupování</option>
-              <option value="VOTING">3. Hlasování</option>
-              <option value="DISCUSSION">4. Diskuze & Časovač</option>
-              <option value="ACTION_ITEMS">5. Akční kroky</option>
-              <option value="ARCHIVED">Uzavřít retrospektivu</option>
-            </select>
-
-            {/* Mask / Blur Toggle Button */}
-            <button
-              onClick={() => toggleBlur(!state.cardsBlurred)}
-              title="Skrýt / Odhalit text karet"
-              style={{
-                padding: "6px 12px",
-                borderRadius: "var(--radius-sm)",
-                background: state.cardsBlurred ? "rgba(245, 158, 11, 0.15)" : "var(--bg-card)",
-                border: `1px solid ${state.cardsBlurred ? "var(--accent-amber)" : "var(--border-color)"}`,
-                color: state.cardsBlurred ? "var(--accent-amber)" : "var(--text-muted)",
-                display: "flex",
-                alignItems: "center",
-                gap: "6px",
-                fontSize: "0.85rem",
-                fontWeight: 600,
-              }}
-            >
-              {state.cardsBlurred ? <EyeOff size={15} /> : <Eye size={15} />}
-              {state.cardsBlurred ? "Maskováno" : "Viditelné"}
-            </button>
-
             {/* Sort by Votes Toggle Button */}
             <button
               type="button"
@@ -1149,25 +1058,6 @@ export const BoardView: React.FC<BoardViewProps> = ({ roomId, user, onBack, onUp
             >
               <Target size={15} color="var(--accent-emerald)" />
               Akční kroky ({state.actionItems?.filter((a) => a.status !== "DONE").length || 0})
-            </button>
-
-            {/* Export Button */}
-            <button
-              onClick={() => setIsExportOpen(true)}
-              style={{
-                padding: "6px 12px",
-                borderRadius: "var(--radius-sm)",
-                background: "var(--bg-card)",
-                border: "1px solid var(--border-color)",
-                color: "var(--text-main)",
-                display: "flex",
-                alignItems: "center",
-                gap: "6px",
-                fontSize: "0.85rem",
-                fontWeight: 600,
-              }}
-            >
-              <FileDown size={15} /> Export
             </button>
 
             {/* Remaining Votes Pill */}
@@ -1931,11 +1821,7 @@ export const BoardView: React.FC<BoardViewProps> = ({ roomId, user, onBack, onUp
         </div>
       </div>
 
-      {/* Modály: Export, Sdílení a Akční kroky */}
-      {isExportOpen && (
-        <ExportModal state={state} onClose={() => setIsExportOpen(false)} />
-      )}
-
+      {/* Modály: Sdílení a Akční kroky */}
       <ShareModal
         isOpen={isShareOpen}
         onClose={() => setIsShareOpen(false)}

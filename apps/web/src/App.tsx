@@ -543,18 +543,6 @@ export const App: React.FC = () => {
                 >
                   <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
                     <h4 style={{ fontSize: "1.1rem", fontWeight: 700, margin: 0 }}>{r.title}</h4>
-                    <span
-                      style={{
-                        fontSize: "0.75rem",
-                        padding: "2px 8px",
-                        borderRadius: "var(--radius-full)",
-                        background: "rgba(99, 102, 241, 0.12)",
-                        color: "var(--accent-indigo)",
-                        fontWeight: 600,
-                      }}
-                    >
-                      {r.phase}
-                    </span>
                   </div>
 
                   <p style={{ fontSize: "0.82rem", color: "var(--text-muted)", margin: 0 }}>

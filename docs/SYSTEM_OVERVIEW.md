@@ -10,10 +10,10 @@
 
 ### Hlavní přednosti:
 - **Nulová latence**: Okamžitá synchronizace přes WebSockets a Cloudflare Durable Objects.
-- **Bezpečný server-side blur**: Během fáze brainstormingu jsou karty ostatních maskovány přímo na serveru (`••••••`), takže text nelze vyčíst ani přes síťový inspection v DevTools.
+- **Čisté a přímočaré rozhraní**: Všechny karty jsou ihned viditelné v reálném čase bez zdržování přepínáním fází či odmaskováváním.
 - **Hierarchické seskupování karet**: Přetažením karty na jinou kartu vzniká skupina myšlenek (`parentCardId`).
 - **Anonymní zvířata**: Přátelské a vtipné generování jmen ve stylu Google Docs (např. *Anonymní Vombat*, *Anonymní Axolotl*).
-- **Časovač & Akční kroky**: Synchronizovaný odpočet s předvolbami i vlastním časem, správa a export úkolů.
+- **Časovač & Akční kroky**: Synchronizovaný odpočet s předvolbami i vlastním časem, správa úkolů v místnosti i v centrálním úkolovníku.
 - **Sdílení s QR kódem**: Rychlé pozvání účastníků do místnosti přes generovaný QR kód i přímý URL odkaz s možností stažení PNG.
 - **Serverless Edge architektura**: 100% běh na Cloudflare ekosystému (Workers, Durable Objects, D1 SQLite).
 

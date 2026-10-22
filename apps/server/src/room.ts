@@ -622,28 +622,14 @@ export class RetroRoom extends DurableObject<Env> {
   }
 
   /**
-   * Odeslání stavu jednomu konkrétnímu klientovi s BEZPEČNÝM SERVER-SIDE MASKOGRAMEM (Blur)
+   * Odeslání stavu jednomu konkrétnímu klientovi
    */
-  private sendStateToSocket(ws: WebSocket, attachment: SocketAttachment) {
+  private sendStateToSocket(ws: WebSocket, _attachment: SocketAttachment) {
     if (!this.state) return;
-
-    // Bezpečný server-side blur: Pokud je aktivní fáze BRAINSTORMING a karty jsou maskované,
-    // cizí uživatelé obdrží zamaskovaný obsah, aby jej nemohli vyčíst v DevTools!
-    const isMasked = this.state.cardsBlurred && this.state.phase === "BRAINSTORMING";
-
-    const sanitizedCards = this.state.cards.map((c) => {
-      if (isMasked && c.authorSessionId !== attachment.userId) {
-        return {
-          ...c,
-          content: "••••••••••••", // Bezpečné maskování na straně serveru
-        };
-      }
-      return c;
-    });
 
     const clientState: RetrospectiveState = {
       ...this.state,
-      cards: sanitizedCards,
+      cardsBlurred: false,
     };
 
     const msg: ServerMessage = {
