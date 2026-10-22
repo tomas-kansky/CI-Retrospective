@@ -1187,7 +1187,16 @@ export const BoardView: React.FC<BoardViewProps> = ({ roomId, user, onBack, onUp
                   )}
                 </div>
 
-                <span style={{ fontSize: "0.8rem", fontWeight: 600, color: "var(--text-muted)" }}>
+                <span
+                  style={{
+                    fontSize: "0.8rem",
+                    fontWeight: 600,
+                    color: "var(--text-muted)",
+                    fontVariantNumeric: "tabular-nums",
+                    minWidth: "1ch",
+                    textAlign: "center",
+                  }}
+                >
                   {uniqueOnlineUsers.length}
                 </span>
                 <ChevronDown size={14} color="var(--text-dim)" />

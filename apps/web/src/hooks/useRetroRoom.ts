@@ -22,6 +22,9 @@ export function useRetroRoom({ roomId, user }: UseRetroRoomOptions) {
 
   const socketRef = useRef<WebSocket | null>(null);
   const reconnectTimeoutRef = useRef<any>(null);
+  const presenceUpdateTimeoutRef = useRef<any>(null);
+  const lastPresenceUpdateAtRef = useRef<number>(0);
+  const pendingUsersRef = useRef<UserSession[] | null>(null);
   const messageQueueRef = useRef<ClientMessage[]>([]);
   const userRef = useRef<UserSession>(user);
   userRef.current = user;
@@ -97,16 +100,45 @@ export function useRetroRoom({ roomId, user }: UseRetroRoomOptions) {
             });
             break;
 
-          case "PRESENCE_UPDATE":
-            setOnlineUsers((prev) => {
-              if (
-                prev.length === msg.payload.users.length &&
-                prev.every((u, i) => u.id === msg.payload.users[i]?.id && u.name === msg.payload.users[i]?.name)
-              ) {
-                return prev;
+          case "PRESENCE_UPDATE": {
+            // Stabilní seřazení podle ID zabrání přeskakování pořadí avatarů
+            const incomingUsers = [...msg.payload.users].sort((a, b) => a.id.localeCompare(b.id));
+            pendingUsersRef.current = incomingUsers;
+
+            const applyPendingUsers = () => {
+              const nextUsers = pendingUsersRef.current;
+              if (!nextUsers) return;
+              lastPresenceUpdateAtRef.current = Date.now();
+              setOnlineUsers((prev) => {
+                if (
+                  prev.length === nextUsers.length &&
+                  prev.every((u, i) => u.id === nextUsers[i]?.id && u.name === nextUsers[i]?.name && u.avatarColor === nextUsers[i]?.avatarColor)
+                ) {
+                  return prev;
+                }
+                return nextUsers;
+              });
+            };
+
+            const now = Date.now();
+            const elapsed = now - lastPresenceUpdateAtRef.current;
+            const PRESENCE_REFRESH_INTERVAL_MS = 10000;
+
+            // První načtení aplikujeme ihned; další změny počtu lidí throttluje 10s okno proti cukání (např. 4 -> 3 -> 4)
+            if (lastPresenceUpdateAtRef.current === 0) {
+              if (presenceUpdateTimeoutRef.current) {
+                clearTimeout(presenceUpdateTimeoutRef.current);
+                presenceUpdateTimeoutRef.current = null;
               }
-              return msg.payload.users;
-            });
+              applyPendingUsers();
+            } else if (!presenceUpdateTimeoutRef.current) {
+              const waitMs = Math.max(0, PRESENCE_REFRESH_INTERVAL_MS - elapsed);
+              presenceUpdateTimeoutRef.current = setTimeout(() => {
+                presenceUpdateTimeoutRef.current = null;
+                applyPendingUsers();
+              }, waitMs || PRESENCE_REFRESH_INTERVAL_MS);
+            }
+
             setTypingUsers((prev) => {
               if (
                 prev.length === msg.payload.typingUsers.length &&
@@ -121,6 +153,7 @@ export function useRetroRoom({ roomId, user }: UseRetroRoomOptions) {
               return msg.payload.typingUsers;
             });
             break;
+          }
 
           case "STATE_PATCH":
             setState((prev) => (prev ? { ...prev, ...msg.payload } : null));
@@ -163,6 +196,10 @@ export function useRetroRoom({ roomId, user }: UseRetroRoomOptions) {
       if (reconnectTimeoutRef.current) {
         clearTimeout(reconnectTimeoutRef.current);
         reconnectTimeoutRef.current = null;
+      }
+      if (presenceUpdateTimeoutRef.current) {
+        clearTimeout(presenceUpdateTimeoutRef.current);
+        presenceUpdateTimeoutRef.current = null;
       }
       if (socketRef.current) {
         const oldWs = socketRef.current;

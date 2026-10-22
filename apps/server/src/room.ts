@@ -37,6 +37,7 @@ export class RetroRoom extends DurableObject<Env> {
   private isDirty = false;
   private isFlushing = false;
   private persistTimeout: any = null;
+  private presenceBroadcastTimeout: any = null;
   private roomId: string | null = null;
 
   constructor(ctx: DurableObjectState, env: Env) {
@@ -564,11 +565,11 @@ export class RetroRoom extends DurableObject<Env> {
         }
 
         case "CLEANUP_PRESENCE": {
-          // Automatické/vyžádané pročištění: ukončíme pouze neaktivní zombie spojení (> 3.5 minuty)
-          // a uzavřená spojení, aniž bychom odpojovali živé účastníky
+          // Automatické/vyžádané pročištění: ukončíme pouze neaktivní zombie spojení (> 15 minut)
+          // a uzavřená spojení, aniž bychom odpojovali živé účastníky (i v pozadí prohlížeče)
           const sockets = this.ctx.getWebSockets();
           const now = Date.now();
-          const INACTIVITY_TIMEOUT_MS = 3.5 * 60 * 1000;
+          const INACTIVITY_TIMEOUT_MS = 15 * 60 * 1000;
 
           for (const s of sockets) {
             if (s === ws) continue;
@@ -589,7 +590,7 @@ export class RetroRoom extends DurableObject<Env> {
               }
             } catch {}
           }
-          this.broadcastPresence();
+          this.schedulePresenceBroadcast(10000);
           break;
         }
       }
@@ -602,7 +603,8 @@ export class RetroRoom extends DurableObject<Env> {
    * Klient se odpojil (vyvoláno z Hibernation API)
    */
   async webSocketClose(ws: WebSocket, code: number, reason: string, wasClean: boolean) {
-    this.broadcastPresence();
+    // Odložíme broadcast přítomnosti o 10s, aby při F5 nebo krátkém reconnectu počet lidí necukal (např. 4 -> 3 -> 4)
+    this.schedulePresenceBroadcast(10000);
     const remaining = this.ctx.getWebSockets().filter((s) => s !== ws && s.readyState === 1);
     if (remaining.length === 0 && (this.isDirty || this.persistTimeout)) {
       if (this.persistTimeout) {
@@ -618,7 +620,7 @@ export class RetroRoom extends DurableObject<Env> {
    * Chyba WebSocket spojení
    */
   async webSocketError(ws: WebSocket, error: any) {
-    this.broadcastPresence();
+    this.schedulePresenceBroadcast(10000);
   }
 
   /**
@@ -656,14 +658,31 @@ export class RetroRoom extends DurableObject<Env> {
   }
 
   /**
+   * Naplánuje odložený broadcast přítomnosti (zabraňuje blikání počtu lidí při krátkém výpadku/F5)
+   */
+  private schedulePresenceBroadcast(delayMs = 10000) {
+    if (this.presenceBroadcastTimeout) {
+      return;
+    }
+    this.presenceBroadcastTimeout = setTimeout(() => {
+      this.presenceBroadcastTimeout = null;
+      this.broadcastPresence();
+    }, delayMs);
+  }
+
+  /**
    * Broadcast seznamu přítomných a indikátorů psaní
    */
   private broadcastPresence() {
+    if (this.presenceBroadcastTimeout) {
+      clearTimeout(this.presenceBroadcastTimeout);
+      this.presenceBroadcastTimeout = null;
+    }
     const sockets = this.ctx.getWebSockets();
     const userMap = new Map<string, UserSession>();
     const typingUsers: Array<{ userId: string; columnId?: string }> = [];
     const now = Date.now();
-    const INACTIVITY_TIMEOUT_MS = 3.5 * 60 * 1000;
+    const INACTIVITY_TIMEOUT_MS = 15 * 60 * 1000;
 
     for (const ws of sockets) {
       // Filtrujeme pouze aktivní otevřená spojení

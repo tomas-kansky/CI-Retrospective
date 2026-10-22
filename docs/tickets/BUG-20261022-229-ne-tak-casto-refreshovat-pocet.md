@@ -2,7 +2,7 @@
 id: "BUG-20261022-229"
 title: "Ne tak často refreshovat počet lidí na board"
 type: "ux"
-status: "open"
+status: "resolved"
 priority: "medium"
 createdAt: "2026-10-22T12:15:26.512Z"
 author:
@@ -44,6 +44,6 @@ Počet lidí na dané board se refreshuje docela často a tudíž vzniká vždy 
 
 ## 🛠️ Návrh řešení & Historie oprav
 *(Tuto sekci doplňuje řešitel při opravě)*
-- **Příčina**: 
-- **Změny**: 
-- **Commit**: 
+- **Příčina**: Počet přítomných uživatelů problikával (`4 -> 3 -> 4`) ze tří důvodů: (1) předchozí 2sekundová reconnect smyčka na klientu, (2) okamžitý `broadcastPresence()` bez prodlevy při `webSocketClose()` během krátkého obnovení stránky či reconnectu a (3) krátký `INACTIVITY_TIMEOUT_MS` (3,5 minuty oproti 3minutovému intervalu `CLEANUP_PRESENCE`), který při zpomalení časovačů neaktivní záložky prohlížečem odpojil klienta kódem `4000`, jenž se za 2 sekundy znovu připojil.
+- **Změny**: V `apps/server/src/room.ts` přidána metoda `schedulePresenceBroadcast(10000)` s 10sekundovou odkladnou lhůtou (grace period) při odpojení klienta (`webSocketClose`, `webSocketError`, `CLEANUP_PRESENCE`), takže krátkodobé obnovení spojení nezpůsobí pokles počtu lidí a následný skok zpět. Dále prodloužen `INACTIVITY_TIMEOUT_MS` na 15 minut. V `apps/web/src/hooks/useRetroRoom.ts` zaveden 10sekundový throttle (`PRESENCE_REFRESH_INTERVAL_MS = 10000`) na aktualizaci seznamu `onlineUsers` a stabilní řazení podle `id`. V `apps/web/src/components/BoardView.tsx` nastaveno `fontVariantNumeric: "tabular-nums"` pro stabilní šířku číslice.
+- **Commit**: `fix: resolve BUG-20261022-229 throttle presence updates to 10s`

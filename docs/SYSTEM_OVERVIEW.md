@@ -126,9 +126,7 @@ Každá retrospektiva prochází těmito fázemi (`RetroPhase`):
 - **Throttling psaní**: Klient odesílá `TYPING_STATUS` s throttlem (maximálně jednou při zahájení psaní, nikoliv na každý úhoz). Server broadcastuje změnu pouze při reálné změně sloupce. Po 2,5 s neaktivity se indikátor automaticky resetuje.
 - **Offline Message Queue & ochrana proti reconnect smyčce**: Hook `useRetroRoom.ts` disponuje frontou zpráv (`messageQueueRef`). Při manuálním uzavření starého socketu se vždy odpojí `onclose` handlery a změny jména/barvy uživatele se posílají in-place zprávou `JOIN` bez shazování spojení.
 - **Optimalizovaná D1 perzistence (`isDirty` & diff flush)**: Durable Object `RetroRoom` sleduje příznak `isDirty` a ukládá do D1 pouze skutečně změněné nebo nově přidané karty, hlasy a akční kroky, čímž šetří denní kvótu zápisů Cloudflare D1.
-- **Sledování aktivity**: Každé spojení eviduje `lastSeen = Date.now()`.
-- Klient v hooku `useRetroRoom.ts` automaticky odesílá `CLEANUP_PRESENCE` každé **3 minuty** (a při `visibilitychange` návratu na záložku).
-- Server vynechá neaktivní zombie relace (starší než 3,5 minuty) a zachovává aktivní účastníky bez výpadku spojení.
+- **Sledování aktivity a 10s grace period / throttle přítomnosti**: Každé spojení eviduje `lastSeen = Date.now()`. Klient v hooku `useRetroRoom.ts` odesílá heartbeat `CLEANUP_PRESENCE` každé **3 minuty** a aktualizuje zobrazený počet online uživatelů maximálně jednou za **10 sekund** (`PRESENCE_REFRESH_INTERVAL_MS = 10000`). Server při odpojení socketu odkládá přepočet přítomnosti o **10 sekund** (`schedulePresenceBroadcast(10000)`) a neaktivní relace čistí až po **15 minutách**, čímž eliminuje problikávání počtu účastníků (`4 -> 3 -> 4`) při krátkém reconnectu nebo uspání záložky prohlížečem.
 
 
 ---
