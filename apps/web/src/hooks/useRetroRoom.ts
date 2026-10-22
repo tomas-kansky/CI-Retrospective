@@ -208,6 +208,8 @@ export function useRetroRoom({ roomId, user }: UseRetroRoomOptions) {
   // Pomocné akce pro komponenty
   const addCard = useCallback(
     (columnId: string, content: string, isAnonymous: boolean = false) => {
+      const trimmedContent = content.trim().slice(0, 255);
+      if (!trimmedContent) return;
       const cardId = crypto.randomUUID();
       const optimisticCard: Card = {
         id: cardId,
@@ -215,7 +217,7 @@ export function useRetroRoom({ roomId, user }: UseRetroRoomOptions) {
         parentCardId: null,
         authorSessionId: isAnonymous ? "anonymous" : user.id,
         authorName: isAnonymous ? "Anonym" : user.name,
-        content: content.trim(),
+        content: trimmedContent,
         sortOrder: state?.cards?.length || 0,
         createdAt: new Date().toISOString(),
       };
@@ -225,7 +227,7 @@ export function useRetroRoom({ roomId, user }: UseRetroRoomOptions) {
 
       sendMessage({
         type: "ADD_CARD",
-        payload: { id: cardId, columnId, content, isAnonymous },
+        payload: { id: cardId, columnId, content: trimmedContent, isAnonymous },
       });
     },
     [sendMessage, user.id, user.name, state?.cards?.length]
@@ -233,9 +235,11 @@ export function useRetroRoom({ roomId, user }: UseRetroRoomOptions) {
 
   const updateCard = useCallback(
     (cardId: string, content: string) => {
+      const trimmedContent = content.trim().slice(0, 255);
+      if (!trimmedContent) return;
       sendMessage({
         type: "UPDATE_CARD",
-        payload: { cardId, content },
+        payload: { cardId, content: trimmedContent },
       });
     },
     [sendMessage]

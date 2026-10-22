@@ -44,6 +44,8 @@ export const ColumnSchema = z.object({
 });
 export type Column = z.infer<typeof ColumnSchema>;
 
+export const MAX_CARD_CONTENT_LENGTH = 255;
+
 export const CardSchema = z.object({
   id: z.string(),
   columnId: z.string(),
@@ -115,7 +117,7 @@ export const ClientMessageSchema = z.discriminatedUnion("type", [
     payload: z.object({
       id: z.string().optional(),
       columnId: z.string(),
-      content: z.string(),
+      content: z.string().trim().min(1).max(MAX_CARD_CONTENT_LENGTH),
       isAnonymous: z.boolean().default(false),
     }),
   }),
@@ -123,7 +125,7 @@ export const ClientMessageSchema = z.discriminatedUnion("type", [
     type: z.literal("UPDATE_CARD"),
     payload: z.object({
       cardId: z.string(),
-      content: z.string(),
+      content: z.string().trim().min(1).max(MAX_CARD_CONTENT_LENGTH),
     }),
   }),
   z.object({

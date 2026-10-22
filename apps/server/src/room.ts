@@ -290,7 +290,7 @@ export class RetroRoom extends DurableObject<Env> {
             parentCardId: null,
             authorSessionId: clientMsg.payload.isAnonymous ? "anonymous" : attachment.userId,
             authorName: clientMsg.payload.isAnonymous ? "Anonym" : attachment.name,
-            content: clientMsg.payload.content.trim(),
+            content: clientMsg.payload.content.trim().slice(0, 255),
             sortOrder: this.state.cards.length,
             createdAt: new Date().toISOString(),
           };
@@ -312,7 +312,7 @@ export class RetroRoom extends DurableObject<Env> {
             this.sendError(ws, "Nemáte oprávnění upravit tuto kartu");
             return;
           }
-          card.content = clientMsg.payload.content.trim();
+          card.content = clientMsg.payload.content.trim().slice(0, 255);
           this.broadcastState();
           this.scheduleD1Flush();
           break;

@@ -2,7 +2,7 @@
 id: "BUG-20261022-947"
 title: "Snížit počet znaků na kartě"
 type: "ux"
-status: "open"
+status: "resolved"
 priority: "medium"
 createdAt: "2026-10-22T12:13:16.781Z"
 author:
@@ -44,6 +44,9 @@ Omezit počet znaků, které do karty můžu napsat, ideálně na 255
 
 ## 🛠️ Návrh řešení & Historie oprav
 *(Tuto sekci doplňuje řešitel při opravě)*
-- **Příčina**: 
-- **Změny**: 
-- **Commit**: 
+- **Příčina**: Chybějící omezení maximální délky textu karty na frontendu i v Zod schématu na serveru.
+- **Změny**:
+  - V `packages/types/src/index.ts` zavedena konstanta `MAX_CARD_CONTENT_LENGTH = 255` a limit `.max(255)` pro `ADD_CARD` i `UPDATE_CARD`.
+  - V `apps/web/src/components/BoardView.tsx` nastaven atribut `maxLength={255}`, ořez v `handleCardTextChange` a přidáno počítadlo znaků `${newCardText.length}/255`.
+  - V `apps/web/src/hooks/useRetroRoom.ts` a `apps/server/src/room.ts` přidán ořez `.slice(0, 255)`.
+- **Commit**: `fix: resolve BUG-20261022-947 limit card content length to 255 chars`

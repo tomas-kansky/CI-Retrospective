@@ -521,7 +521,7 @@ export const BoardView: React.FC<BoardViewProps> = ({ roomId, user, onBack, onUp
   const isTypingActiveRef = useRef<boolean>(false);
 
   const handleCardTextChange = (columnId: string, text: string) => {
-    setNewCardText(text);
+    setNewCardText(text.slice(0, 255));
 
     if (typingTimeoutRef.current) {
       clearTimeout(typingTimeoutRef.current);
@@ -1731,6 +1731,7 @@ export const BoardView: React.FC<BoardViewProps> = ({ roomId, user, onBack, onUp
                       <textarea
                         autoFocus
                         rows={3}
+                        maxLength={255}
                         placeholder="Napište myšlenku... (Ctrl+Enter pro odeslání)"
                         value={newCardText}
                         onChange={(e) => handleCardTextChange(column.id, e.target.value)}
@@ -1752,14 +1753,30 @@ export const BoardView: React.FC<BoardViewProps> = ({ roomId, user, onBack, onUp
                       />
 
                       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                        <label style={{ display: "flex", alignItems: "center", gap: "6px", fontSize: "0.75rem", color: "var(--text-muted)", cursor: "pointer" }}>
-                          <input
-                            type="checkbox"
-                            checked={isAnonymous}
-                            onChange={(e) => setIsAnonymous(e.target.checked)}
-                          />
-                          Anonymně
-                        </label>
+                        <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+                          <label style={{ display: "flex", alignItems: "center", gap: "6px", fontSize: "0.75rem", color: "var(--text-muted)", cursor: "pointer" }}>
+                            <input
+                              type="checkbox"
+                              checked={isAnonymous}
+                              onChange={(e) => setIsAnonymous(e.target.checked)}
+                            />
+                            Anonymně
+                          </label>
+                          <span
+                            style={{
+                              fontSize: "0.72rem",
+                              color:
+                                newCardText.length >= 255
+                                  ? "var(--accent-rose)"
+                                  : newCardText.length >= 230
+                                  ? "var(--accent-amber, #f59e0b)"
+                                  : "var(--text-dim)",
+                              fontWeight: newCardText.length >= 230 ? 600 : 400,
+                            }}
+                          >
+                            {newCardText.length}/255
+                          </span>
+                        </div>
 
                         <div style={{ display: "flex", gap: "6px" }}>
                           <button

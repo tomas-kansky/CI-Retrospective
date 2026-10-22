@@ -10,7 +10,7 @@
 
 ### Hlavní přednosti:
 - **Nulová latence**: Okamžitá synchronizace přes WebSockets a Cloudflare Durable Objects.
-- **Čisté a přímočaré rozhraní**: Všechny karty jsou ihned viditelné v reálném čase bez zdržování přepínáním fází či odmaskováváním.
+- **Čisté a přímočaré rozhraní**: Všechny karty (s limitem max. 255 znaků a počítadlem délky) jsou ihned viditelné v reálném čase bez zdržování přepínáním fází či odmaskováváním.
 - **Hierarchické seskupování karet**: Přetažením karty na jinou kartu vzniká skupina myšlenek (`parentCardId`).
 - **Anonymní zvířata**: Přátelské a vtipné generování jmen ve stylu Google Docs (např. *Anonymní Vombat*, *Anonymní Axolotl*).
 - **Časovač & Akční kroky**: Synchronizovaný odpočet s předvolbami i vlastním časem, správa úkolů v místnosti i v centrálním úkolovníku.
