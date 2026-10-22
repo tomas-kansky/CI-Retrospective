@@ -600,6 +600,7 @@ export const BoardView: React.FC<BoardViewProps> = ({ roomId, user, onBack, onUp
   // Modály
   const [isShareOpen, setIsShareOpen] = useState(false);
   const [isActionItemsOpen, setIsActionItemsOpen] = useState(false);
+  const [globalOpenActionItemsCount, setGlobalOpenActionItemsCount] = useState<number>(0);
   const [isBugReportOpen, setIsBugReportOpen] = useState(false);
 
   // Synchronizovaný lokální odpočet času
@@ -1211,7 +1212,7 @@ export const BoardView: React.FC<BoardViewProps> = ({ roomId, user, onBack, onUp
               }}
             >
               <Target size={15} color="var(--accent-emerald)" />
-              Akční kroky ({state.actionItems?.filter((a) => a.status !== "DONE").length || 0})
+              Akční kroky ({globalOpenActionItemsCount})
             </button>
 
             {/* Remaining Votes Pill */}
@@ -2016,11 +2017,22 @@ export const BoardView: React.FC<BoardViewProps> = ({ roomId, user, onBack, onUp
       />
 
       <ActionItemsDrawer
+        roomId={roomId}
+        roomTitle={state.title}
         actionItems={state.actionItems || []}
+        boardActionColumnTexts={state.cards
+          .filter((card) => {
+            const col = state.columns.find((c) => c.id === card.columnId);
+            if (!col) return false;
+            const titleLower = col.title.toLowerCase();
+            return titleLower.includes("akční") || titleLower.includes("action");
+          })
+          .map((c) => c.content)}
         isOpen={isActionItemsOpen}
         onClose={() => setIsActionItemsOpen(false)}
         onAdd={addActionItem}
         onToggleStatus={(id, status) => updateActionItem(id, status)}
+        onGlobalOpenCountChange={setGlobalOpenActionItemsCount}
       />
 
       {/* Bug Report Modal */}

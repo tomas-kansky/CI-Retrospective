@@ -2,15 +2,12 @@ import React, { useState, useEffect } from "react";
 import {
   X,
   CheckCircle2,
-  Circle,
-  Calendar,
-  User,
   ExternalLink,
   Layers,
   Search,
-  Filter,
   CheckSquare,
-  Sparkles,
+  Plus,
+  RotateCcw,
 } from "lucide-react";
 import type { GlobalActionItem } from "@ci-retro/types";
 
@@ -28,8 +25,11 @@ export const GlobalActionItemsModal: React.FC<GlobalActionItemsModalProps> = ({
   const [items, setItems] = useState<GlobalActionItem[]>([]);
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
-  const [filter, setFilter] = useState<"ALL" | "OPEN" | "DONE">("ALL");
+  // Defaultně zobrazujeme záložku "K vyřešení" ("OPEN")
+  const [filter, setFilter] = useState<"ALL" | "OPEN" | "DONE">("OPEN");
   const [searchQuery, setSearchQuery] = useState("");
+  const [newText, setNewText] = useState("");
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   const loadItems = async () => {
     setIsLoading(true);
@@ -43,7 +43,7 @@ export const GlobalActionItemsModal: React.FC<GlobalActionItemsModalProps> = ({
         setError("Nepodařilo se načíst seznam akčních kroků.");
       }
     } catch (err: any) {
-      console.error("Chyba při načítání úkolovníku:", err);
+      console.error("Chyba při načítání akčních kroků:", err);
       setError("Chyba spojení se serverem.");
     } finally {
       setIsLoading(false);
@@ -52,16 +52,15 @@ export const GlobalActionItemsModal: React.FC<GlobalActionItemsModalProps> = ({
 
   useEffect(() => {
     if (isOpen) {
+      setFilter("OPEN");
       loadItems();
     }
   }, [isOpen]);
 
   if (!isOpen) return null;
 
-  const handleToggleStatus = async (item: GlobalActionItem) => {
-    const newStatus = item.status === "DONE" ? "OPEN" : "DONE";
-
-    // Optimistická aktualizace v UI
+  const handleSetStatus = async (item: GlobalActionItem, newStatus: "OPEN" | "DONE") => {
+    // Optimistická aktualizace v UI (při Mark as Done okamžitě zmizí ze záložky K vyřešení a přesune se do Hotovo)
     setItems((prev) =>
       prev.map((i) => (i.id === item.id ? { ...i, status: newStatus } : i))
     );
@@ -74,16 +73,45 @@ export const GlobalActionItemsModal: React.FC<GlobalActionItemsModalProps> = ({
       });
 
       if (!res.ok) {
-        // Vrácení v případě chyby
         setItems((prev) =>
           prev.map((i) => (i.id === item.id ? { ...i, status: item.status } : i))
         );
       }
     } catch (err) {
-      console.error("Chyba při změně stavu úkolu:", err);
+      console.error("Chyba při změně stavu akčního kroku:", err);
       setItems((prev) =>
         prev.map((i) => (i.id === item.id ? { ...i, status: item.status } : i))
       );
+    }
+  };
+
+  const handleAddSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const trimmed = newText.trim();
+    if (!trimmed || isSubmitting) return;
+
+    setIsSubmitting(true);
+    setNewText("");
+
+    try {
+      const res = await fetch("/api/action-items", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ text: trimmed }),
+      });
+
+      if (res.ok) {
+        const data = await res.json();
+        if (Array.isArray(data.actionItems) && data.actionItems.length > 0) {
+          setItems((prev) => [...data.actionItems, ...prev]);
+        } else {
+          await loadItems();
+        }
+      }
+    } catch (err) {
+      console.error("Chyba při vytváření akčního kroku:", err);
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -99,12 +127,10 @@ export const GlobalActionItemsModal: React.FC<GlobalActionItemsModalProps> = ({
       const q = searchQuery.toLowerCase();
       return (
         item.text.toLowerCase().includes(q) ||
-        (item.assignee && item.assignee.toLowerCase().includes(q)) ||
         (item.retrospectiveTitle && item.retrospectiveTitle.toLowerCase().includes(q))
       );
     })
     .sort((a, b) => {
-      // Hotové úkoly jdou vždy na spodek
       const aDone = a.status === "DONE";
       const bDone = b.status === "DONE";
       if (aDone !== bDone) {
@@ -136,7 +162,7 @@ export const GlobalActionItemsModal: React.FC<GlobalActionItemsModalProps> = ({
         style={{
           width: "100%",
           maxWidth: "680px",
-          maxHeight: "85vh",
+          maxHeight: "88vh",
           background: "var(--bg-secondary)",
           borderRadius: "var(--radius-lg)",
           border: "1px solid var(--border-color)",
@@ -175,10 +201,10 @@ export const GlobalActionItemsModal: React.FC<GlobalActionItemsModalProps> = ({
             </div>
             <div>
               <h3 style={{ fontSize: "1.25rem", fontWeight: 800, margin: 0, letterSpacing: "-0.02em" }}>
-                Úkolovník (Action Items)
+                Akční kroky
               </h3>
               <p style={{ margin: 0, fontSize: "0.8rem", color: "var(--text-muted)" }}>
-                Přehled všech zapsaných úkolů napříč vašimi retrospektivami
+                Globální akční kroky sdílené napříč všemi boards
               </p>
             </div>
           </div>
@@ -275,7 +301,7 @@ export const GlobalActionItemsModal: React.FC<GlobalActionItemsModalProps> = ({
             />
             <input
               type="text"
-              placeholder="Hledat úkol, řešitele..."
+              placeholder="Hledat akční krok..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               style={{
@@ -314,7 +340,7 @@ export const GlobalActionItemsModal: React.FC<GlobalActionItemsModalProps> = ({
             <div
               style={{
                 textAlign: "center",
-                padding: "50px 20px",
+                padding: "45px 20px",
                 color: "var(--text-dim)",
                 display: "flex",
                 flexDirection: "column",
@@ -325,10 +351,10 @@ export const GlobalActionItemsModal: React.FC<GlobalActionItemsModalProps> = ({
               <CheckSquare size={32} color="var(--text-dim)" />
               <p style={{ margin: 0, fontSize: "0.95rem" }}>
                 {searchQuery
-                  ? "Žádné úkoly neodpovídají hledání."
+                  ? "Žádné akční kroky neodpovídají hledání."
                   : filter === "DONE"
-                  ? "Zatím nemáte žádné dokončené úkoly."
-                  : "Všechny úkoly jsou splněny nebo zatím žádné nebyly zapsány!"}
+                  ? "Zatím nemáte žádné hotové akční kroky."
+                  : "Všechny akční kroky jsou vyřešeny nebo zatím žádné nebyly přidány!"}
               </p>
             </div>
           ) : (
@@ -346,37 +372,13 @@ export const GlobalActionItemsModal: React.FC<GlobalActionItemsModalProps> = ({
                       ? "1px solid rgba(255, 255, 255, 0.05)"
                       : "1px solid var(--border-color)",
                     display: "flex",
-                    alignItems: "flex-start",
+                    alignItems: "center",
+                    justifyContent: "space-between",
                     gap: "14px",
                     transition: "all 0.2s ease",
-                    opacity: isDone ? 0.6 : 1,
+                    opacity: isDone ? 0.65 : 1,
                   }}
                 >
-                  {/* Status Toggle Button (Checkbox) */}
-                  <button
-                    type="button"
-                    onClick={() => handleToggleStatus(item)}
-                    title={isDone ? "Označit jako nevyřešené" : "Označit jako hotové"}
-                    style={{
-                      background: "transparent",
-                      border: "none",
-                      color: isDone ? "var(--accent-emerald)" : "var(--text-muted)",
-                      cursor: "pointer",
-                      padding: "2px",
-                      display: "flex",
-                      alignItems: "center",
-                      justifyContent: "center",
-                      marginTop: "2px",
-                      transition: "transform 0.15s ease",
-                    }}
-                  >
-                    {isDone ? (
-                      <CheckCircle2 size={20} color="var(--accent-emerald)" />
-                    ) : (
-                      <Circle size={20} color="var(--text-dim)" />
-                    )}
-                  </button>
-
                   {/* Task Content */}
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <p
@@ -393,99 +395,152 @@ export const GlobalActionItemsModal: React.FC<GlobalActionItemsModalProps> = ({
                       {item.text}
                     </p>
 
-                    {/* Metadata & Origin Retro Link */}
-                    <div
-                      style={{
-                        display: "flex",
-                        alignItems: "center",
-                        gap: "12px",
-                        marginTop: "8px",
-                        flexWrap: "wrap",
-                        fontSize: "0.75rem",
-                        color: "var(--text-muted)",
-                      }}
-                    >
-                      {/* Origin Board Badge */}
-                      <button
-                        type="button"
-                        onClick={() => {
-                          onOpenRetro(item.retrospectiveId);
-                          onClose();
-                        }}
-                        title="Otevřít tuto retrospektivu"
+                    {/* Origin Retro Link */}
+                    {item.retrospectiveId && item.retrospectiveId !== "global" && (
+                      <div
                         style={{
-                          display: "inline-flex",
+                          display: "flex",
                           alignItems: "center",
-                          gap: "5px",
-                          padding: "2px 8px",
-                          borderRadius: "var(--radius-full)",
-                          background: "rgba(99, 102, 241, 0.1)",
-                          color: "var(--accent-indigo)",
-                          border: "1px solid rgba(99, 102, 241, 0.25)",
-                          fontWeight: 600,
-                          cursor: "pointer",
+                          gap: "8px",
+                          marginTop: "6px",
+                          flexWrap: "wrap",
+                          fontSize: "0.75rem",
+                          color: "var(--text-muted)",
                         }}
                       >
-                        <Layers size={11} />
-                        <span>{item.retrospectiveTitle || "Retrospektiva"}</span>
-                        <ExternalLink size={10} />
-                      </button>
-
-                      {/* Assignee */}
-                      {item.assignee && (
-                        <span style={{ display: "flex", alignItems: "center", gap: "4px" }}>
-                          <User size={12} color="var(--accent-cyan)" />
-                          <span>{item.assignee}</span>
-                        </span>
-                      )}
-
-                      {/* Due Date */}
-                      {item.dueDate && (
-                        <span style={{ display: "flex", alignItems: "center", gap: "4px" }}>
-                          <Calendar size={12} color="var(--accent-amber)" />
-                          <span>{item.dueDate}</span>
-                        </span>
-                      )}
-                    </div>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            onOpenRetro(item.retrospectiveId);
+                            onClose();
+                          }}
+                          title="Otevřít tuto retrospektivu"
+                          style={{
+                            display: "inline-flex",
+                            alignItems: "center",
+                            gap: "5px",
+                            padding: "2px 8px",
+                            borderRadius: "var(--radius-full)",
+                            background: "rgba(99, 102, 241, 0.1)",
+                            color: "var(--accent-indigo)",
+                            border: "1px solid rgba(99, 102, 241, 0.25)",
+                            fontWeight: 600,
+                            cursor: "pointer",
+                          }}
+                        >
+                          <Layers size={11} />
+                          <span>{item.retrospectiveTitle || "Retrospektiva"}</span>
+                          <ExternalLink size={10} />
+                        </button>
+                      </div>
+                    )}
                   </div>
+
+                  {/* Mark as Done / Reopen Button */}
+                  {!isDone ? (
+                    <button
+                      type="button"
+                      onClick={() => handleSetStatus(item, "DONE")}
+                      title="Označit akční krok jako hotový a přesunout do Hotovo"
+                      style={{
+                        padding: "6px 12px",
+                        borderRadius: "var(--radius-sm)",
+                        background: "rgba(16, 185, 129, 0.14)",
+                        color: "var(--accent-emerald)",
+                        border: "1px solid rgba(16, 185, 129, 0.35)",
+                        fontSize: "0.78rem",
+                        fontWeight: 700,
+                        cursor: "pointer",
+                        display: "inline-flex",
+                        alignItems: "center",
+                        gap: "6px",
+                        whiteSpace: "nowrap",
+                        flexShrink: 0,
+                        transition: "background 0.15s ease",
+                      }}
+                    >
+                      <CheckCircle2 size={14} />
+                      <span>Mark as Done</span>
+                    </button>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() => handleSetStatus(item, "OPEN")}
+                      title="Vrátit zpět mezi K vyřešení"
+                      style={{
+                        padding: "5px 10px",
+                        borderRadius: "var(--radius-sm)",
+                        background: "rgba(255, 255, 255, 0.05)",
+                        color: "var(--text-muted)",
+                        border: "1px solid var(--border-color)",
+                        fontSize: "0.75rem",
+                        fontWeight: 600,
+                        cursor: "pointer",
+                        display: "inline-flex",
+                        alignItems: "center",
+                        gap: "5px",
+                        whiteSpace: "nowrap",
+                        flexShrink: 0,
+                      }}
+                    >
+                      <RotateCcw size={12} />
+                      <span>Vrátit</span>
+                    </button>
+                  )}
                 </div>
               );
             })
           )}
         </div>
 
-        {/* Footer */}
+        {/* Add new Action Item Form (pouze pole "Co je potřeba udělat...") */}
         <div
           style={{
-            padding: "14px 24px",
+            padding: "16px 24px",
             borderTop: "1px solid var(--border-color)",
-            display: "flex",
-            justifyContent: "space-between",
-            alignItems: "center",
             background: "var(--bg-card)",
-            fontSize: "0.8rem",
-            color: "var(--text-muted)",
           }}
         >
-          <span>
-            Zbývá vyřešit: <strong style={{ color: "var(--text-main)" }}>{openCount}</strong> z{" "}
-            <strong>{items.length}</strong>
-          </span>
-          <button
-            onClick={onClose}
-            style={{
-              padding: "6px 14px",
-              borderRadius: "var(--radius-sm)",
-              background: "var(--bg-secondary)",
-              border: "1px solid var(--border-color)",
-              color: "var(--text-main)",
-              fontSize: "0.82rem",
-              fontWeight: 600,
-              cursor: "pointer",
-            }}
-          >
-            Zavřít
-          </button>
+          <form onSubmit={handleAddSubmit} style={{ display: "flex", gap: "10px" }}>
+            <input
+              type="text"
+              placeholder="Co je potřeba udělat..."
+              value={newText}
+              onChange={(e) => setNewText(e.target.value)}
+              required
+              style={{
+                flex: 1,
+                padding: "10px 14px",
+                borderRadius: "var(--radius-sm)",
+                background: "var(--bg-primary)",
+                border: "1px solid var(--border-color)",
+                color: "var(--text-main)",
+                fontSize: "0.88rem",
+              }}
+            />
+            <button
+              type="submit"
+              disabled={!newText.trim() || isSubmitting}
+              style={{
+                padding: "10px 18px",
+                borderRadius: "var(--radius-sm)",
+                background: "var(--accent-emerald)",
+                color: "#ffffff",
+                fontWeight: 700,
+                fontSize: "0.85rem",
+                border: "none",
+                cursor: newText.trim() && !isSubmitting ? "pointer" : "not-allowed",
+                opacity: newText.trim() && !isSubmitting ? 1 : 0.6,
+                display: "flex",
+                alignItems: "center",
+                gap: "6px",
+                whiteSpace: "nowrap",
+              }}
+            >
+              <Plus size={16} />
+              <span>Přidat akční krok</span>
+            </button>
+          </form>
         </div>
       </div>
     </div>

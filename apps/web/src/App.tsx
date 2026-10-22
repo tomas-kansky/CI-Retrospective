@@ -178,6 +178,7 @@ export const App: React.FC = () => {
   const handleBackToDashboard = () => {
     window.location.hash = "";
     loadRetrospectives();
+    loadActionItemsCount();
   };
 
   // Pokud je v URL vybrána konkrétní místnost, zobrazíme real-time BoardView
@@ -341,7 +342,7 @@ export const App: React.FC = () => {
 
           <button
             onClick={() => setIsTasksModalOpen(true)}
-            title="Otevřít centrální úkolovník"
+            title="Otevřít globální akční kroky"
             style={{
               padding: "8px 14px",
               borderRadius: "var(--radius-md)",
@@ -357,7 +358,7 @@ export const App: React.FC = () => {
             }}
           >
             <CheckSquare size={16} />
-            <span>Úkolovník</span>
+            <span>Akční kroky</span>
             {openActionItemsCount > 0 && (
               <span
                 style={{

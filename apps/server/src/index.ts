@@ -1,6 +1,6 @@
 import { Hono } from "hono";
 import { cors } from "hono/cors";
-import { eq, desc } from "drizzle-orm";
+import { eq, ne, desc } from "drizzle-orm";
 import { RetroRoom, type Env } from "./room";
 import { createDb, ensureTablesExist, retrospectives, columns, cards, votes, actionItems, tickets } from "./db";
 import { TemplateTypeSchema, CreateTicketSchema } from "@ci-retro/types";
@@ -24,7 +24,7 @@ app.use(
   "*",
   cors({
     origin: "*",
-    allowMethods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+    allowMethods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
     allowHeaders: ["Content-Type", "Authorization", "Upgrade"],
   })
 );
@@ -52,13 +52,14 @@ app.get("/api/retrospectives", async (c) => {
   const allRetros = await db
     .select()
     .from(retrospectives)
+    .where(ne(retrospectives.id, "global"))
     .orderBy(desc(retrospectives.createdAt))
     .limit(50);
 
   return c.json({ retrospectives: allRetros });
 });
 
-// Seznam všech akčních kroků napříč všemi retrospektivami (Globální úkolovník)
+// Seznam všech akčních kroků napříč všemi retrospektivami (Globální Akční kroky)
 app.get("/api/action-items", async (c) => {
   const db = createDb(c.env.DB);
   const items = await db
@@ -79,7 +80,76 @@ app.get("/api/action-items", async (c) => {
   return c.json({ actionItems: items });
 });
 
-// Aktualizace stavu akčního kroku (např. odškrtnutí jako hotovo / otevření)
+// Vytvoření nového akčního kroku (nebo hromadný import z tabule) do globálních Akčních kroků
+app.post("/api/action-items", async (c) => {
+  const body = await c.req.json<{
+    text?: string;
+    texts?: string[];
+    retrospectiveId?: string;
+  }>();
+
+  const rawTexts: string[] = Array.isArray(body.texts)
+    ? body.texts
+    : body.text
+    ? [body.text]
+    : [];
+
+  const cleanedTexts = rawTexts.map((t) => t.trim()).filter(Boolean);
+  if (cleanedTexts.length === 0) {
+    return c.json({ error: "Chybí text akčního kroku" }, 400);
+  }
+
+  const db = createDb(c.env.DB);
+  const targetRetroId = body.retrospectiveId?.trim() || "global";
+  const now = new Date().toISOString();
+
+  // Pokud je akční krok vytvořen globálně mimo konkrétní board, zajistíme existenci kotevního záznamu "global"
+  if (targetRetroId === "global") {
+    await db
+      .insert(retrospectives)
+      .values({
+        id: "global",
+        title: "Globální",
+        phase: "ACTION_ITEMS",
+        templateType: "WENT_WELL_TO_IMPROVE",
+        maxVotesPerUser: 5,
+        cardsBlurred: false,
+        timerEndsAt: null,
+        timerDurationSecs: 300,
+        createdAt: now,
+      })
+      .onConflictDoNothing();
+  }
+
+  const retroRecord = await db.query.retrospectives.findFirst({
+    where: eq(retrospectives.id, targetRetroId),
+  });
+  const retroTitle = retroRecord?.title || "Globální";
+
+  const createdItems = cleanedTexts.map((text) => ({
+    id: crypto.randomUUID(),
+    retrospectiveId: targetRetroId,
+    text,
+    assignee: null,
+    status: "OPEN" as const,
+    dueDate: null,
+    createdAt: now,
+  }));
+
+  await db.insert(actionItems).values(createdItems);
+
+  return c.json(
+    {
+      actionItems: createdItems.map((item) => ({
+        ...item,
+        retrospectiveTitle: retroTitle,
+      })),
+    },
+    201
+  );
+});
+
+// Aktualizace stavu akčního kroku (např. Mark as Done -> přesun do Hotovo)
 app.patch("/api/action-items/:id", async (c) => {
   const id = c.req.param("id");
   const body = await c.req.json<{ status: "OPEN" | "IN_PROGRESS" | "DONE" }>();
