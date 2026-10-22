@@ -40,6 +40,7 @@ import {
   Sparkles,
   Bug,
   ArrowDownWideNarrow,
+  Copy,
 } from "lucide-react";
 import type { UserSession, Card, Column } from "@ci-retro/types";
 import { useRetroRoom } from "../hooks/useRetroRoom";
@@ -601,7 +602,55 @@ export const BoardView: React.FC<BoardViewProps> = ({ roomId, user, onBack, onUp
   const [isShareOpen, setIsShareOpen] = useState(false);
   const [isActionItemsOpen, setIsActionItemsOpen] = useState(false);
   const [globalOpenActionItemsCount, setGlobalOpenActionItemsCount] = useState<number>(0);
+  const [isCopyingActionItems, setIsCopyingActionItems] = useState(false);
+  const [copiedActionItemsSuccess, setCopiedActionItemsSuccess] = useState(false);
   const [isBugReportOpen, setIsBugReportOpen] = useState(false);
+
+  const handleCopyBoardActionItems = async (texts: string[]) => {
+    const cleaned = texts.map((t) => t.trim()).filter(Boolean);
+    if (cleaned.length === 0 || isCopyingActionItems) return;
+
+    setIsCopyingActionItems(true);
+    try {
+      const res = await fetch("/api/action-items", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          texts: cleaned,
+          retrospectiveId: roomId,
+        }),
+      });
+
+      if (res.ok) {
+        const data = await res.json();
+        const copiedCount = typeof data.copiedCount === "number" ? data.copiedCount : cleaned.length;
+        // Aktualizujeme počet otevřených globálních akčních kroků
+        const listRes = await fetch("/api/action-items");
+        if (listRes.ok) {
+          const listData = await listRes.json();
+          const open = (listData.actionItems || []).filter((i: any) => i.status !== "DONE").length;
+          setGlobalOpenActionItemsCount(open);
+        } else if (copiedCount > 0) {
+          setGlobalOpenActionItemsCount((prev) => prev + copiedCount);
+        }
+
+        setCopiedActionItemsSuccess(true);
+        setPresenceToast(
+          copiedCount > 0
+            ? `Zkopírováno ${copiedCount} akčních kroků do globálních Akčních kroků`
+            : "Všechny akční kroky z tabule již jsou v globálních Akčních krocích"
+        );
+        setTimeout(() => {
+          setCopiedActionItemsSuccess(false);
+          setPresenceToast(null);
+        }, 3000);
+      }
+    } catch (err) {
+      console.error("Chyba při kopírování akčních kroků z tabule:", err);
+    } finally {
+      setIsCopyingActionItems(false);
+    }
+  };
 
   // Synchronizovaný lokální odpočet času
   const [secondsLeft, setSecondsLeft] = useState<number | null>(null);
@@ -1623,6 +1672,10 @@ export const BoardView: React.FC<BoardViewProps> = ({ roomId, user, onBack, onUp
               rootCards.sort((a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0));
             }
 
+            const isActionItemsColumn =
+              column.title.toLowerCase().includes("akční") ||
+              column.title.toLowerCase().includes("action");
+
             return (
               <DroppableColumn key={column.id} column={column} cards={colAllCards}>
                 {/* Column Header */}
@@ -1632,22 +1685,76 @@ export const BoardView: React.FC<BoardViewProps> = ({ roomId, user, onBack, onUp
                     display: "flex",
                     justifyContent: "space-between",
                     alignItems: "center",
+                    gap: "10px",
                     borderBottom: "1px solid var(--border-color)",
                   }}
                 >
                   <h3 style={{ fontSize: "1rem", fontWeight: 700, margin: 0 }}>{column.title}</h3>
-                  <span
-                    style={{
-                      fontSize: "0.75rem",
-                      padding: "2px 8px",
-                      borderRadius: "var(--radius-full)",
-                      background: "var(--bg-secondary)",
-                      color: "var(--text-muted)",
-                      fontWeight: 700,
-                    }}
-                  >
-                    {colAllCards.length}
-                  </span>
+                  <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                    {isActionItemsColumn && (
+                      <button
+                        type="button"
+                        onClick={() =>
+                          handleCopyBoardActionItems(colAllCards.map((c) => c.content))
+                        }
+                        disabled={colAllCards.length === 0 || isCopyingActionItems}
+                        title={
+                          colAllCards.length === 0
+                            ? "Ve sloupci zatím nejsou žádné akční kroky ke zkopírování"
+                            : "Zkopírovat akční kroky z tohoto sloupce do globálních Akčních kroků"
+                        }
+                        style={{
+                          padding: "4px 10px",
+                          borderRadius: "var(--radius-sm)",
+                          background: copiedActionItemsSuccess
+                            ? "rgba(16, 185, 129, 0.18)"
+                            : "rgba(99, 102, 241, 0.14)",
+                          color: copiedActionItemsSuccess
+                            ? "var(--accent-emerald)"
+                            : "var(--accent-indigo)",
+                          border: copiedActionItemsSuccess
+                            ? "1px solid rgba(16, 185, 129, 0.4)"
+                            : "1px solid rgba(99, 102, 241, 0.35)",
+                          fontSize: "0.75rem",
+                          fontWeight: 700,
+                          cursor:
+                            colAllCards.length > 0 && !isCopyingActionItems
+                              ? "pointer"
+                              : "not-allowed",
+                          opacity: colAllCards.length > 0 ? 1 : 0.45,
+                          display: "inline-flex",
+                          alignItems: "center",
+                          gap: "5px",
+                          whiteSpace: "nowrap",
+                          transition: "all 0.15s ease",
+                        }}
+                      >
+                        {copiedActionItemsSuccess ? (
+                          <>
+                            <Check size={13} />
+                            <span>Zkopírováno</span>
+                          </>
+                        ) : (
+                          <>
+                            <Copy size={12} />
+                            <span>Zkopírovat do Akčních kroků</span>
+                          </>
+                        )}
+                      </button>
+                    )}
+                    <span
+                      style={{
+                        fontSize: "0.75rem",
+                        padding: "2px 8px",
+                        borderRadius: "var(--radius-full)",
+                        background: "var(--bg-secondary)",
+                        color: "var(--text-muted)",
+                        fontWeight: 700,
+                      }}
+                    >
+                      {colAllCards.length}
+                    </span>
+                  </div>
                 </div>
 
                 {/* Cards List */}

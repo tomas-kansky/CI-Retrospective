@@ -126,7 +126,23 @@ app.post("/api/action-items", async (c) => {
   });
   const retroTitle = retroRecord?.title || "Globální";
 
-  const createdItems = cleanedTexts.map((text) => ({
+  // Při hromadném kopírování z tabule přeskočíme položky, které už v globálních Akčních krocích existují
+  let textsToInsert = cleanedTexts;
+  if (Array.isArray(body.texts)) {
+    const existing = await db.select({ text: actionItems.text }).from(actionItems);
+    const existingSet = new Set(existing.map((e) => e.text.trim().toLowerCase()));
+    const seenInBatch = new Set<string>();
+    textsToInsert = cleanedTexts.filter((t) => {
+      const normalized = t.toLowerCase();
+      if (existingSet.has(normalized) || seenInBatch.has(normalized)) {
+        return false;
+      }
+      seenInBatch.add(normalized);
+      return true;
+    });
+  }
+
+  const createdItems = textsToInsert.map((text) => ({
     id: crypto.randomUUID(),
     retrospectiveId: targetRetroId,
     text,
@@ -136,10 +152,13 @@ app.post("/api/action-items", async (c) => {
     createdAt: now,
   }));
 
-  await db.insert(actionItems).values(createdItems);
+  if (createdItems.length > 0) {
+    await db.insert(actionItems).values(createdItems);
+  }
 
   return c.json(
     {
+      copiedCount: createdItems.length,
       actionItems: createdItems.map((item) => ({
         ...item,
         retrospectiveTitle: retroTitle,
