@@ -1,5 +1,5 @@
 import { DurableObject } from "cloudflare:workers";
-import { eq } from "drizzle-orm";
+import { eq, inArray } from "drizzle-orm";
 import {
   type RetrospectiveState,
   type Card,
@@ -34,6 +34,8 @@ interface SocketAttachment {
 export class RetroRoom extends DurableObject<Env> {
   private state: RetrospectiveState | null = null;
   private isLoadedFromDb = false;
+  private isDirty = false;
+  private isFlushing = false;
   private persistTimeout: any = null;
   private roomId: string | null = null;
 
@@ -82,8 +84,10 @@ export class RetroRoom extends DurableObject<Env> {
     let loadedVotes: Vote[] = [];
 
     if (columnIds.length > 0) {
-      const dbCards = await db.select().from(cards);
-      const filteredCards = dbCards.filter((c) => columnIds.includes(c.columnId));
+      const filteredCards = await db
+        .select()
+        .from(cards)
+        .where(inArray(cards.columnId, columnIds));
       loadedCards = filteredCards.map((c) => ({
         id: c.id,
         columnId: c.columnId,
@@ -96,10 +100,18 @@ export class RetroRoom extends DurableObject<Env> {
         createdAt: c.createdAt,
       }));
 
-      const cardIds = loadedCards.map((c) => c.id);
-      if (cardIds.length > 0) {
-        const dbVotes = await db.select().from(votes);
-        const filteredVotes = dbVotes.filter((v) => cardIds.includes(v.cardId));
+      if (loadedCards.length > 0) {
+        const filteredVotes = await db
+          .select({
+            id: votes.id,
+            cardId: votes.cardId,
+            userSessionId: votes.userSessionId,
+            voteType: votes.voteType,
+            createdAt: votes.createdAt,
+          })
+          .from(votes)
+          .innerJoin(cards, eq(votes.cardId, cards.id))
+          .where(inArray(cards.columnId, columnIds));
         loadedVotes = filteredVotes.map((v) => ({
           id: v.id,
           cardId: v.cardId,
@@ -592,8 +604,12 @@ export class RetroRoom extends DurableObject<Env> {
   async webSocketClose(ws: WebSocket, code: number, reason: string, wasClean: boolean) {
     this.broadcastPresence();
     const remaining = this.ctx.getWebSockets().filter((s) => s !== ws && s.readyState === 1);
-    if (remaining.length === 0) {
-      // Poslední klient se odpojil - okamžitě uložíme stav do D1, než DO usne
+    if (remaining.length === 0 && (this.isDirty || this.persistTimeout)) {
+      if (this.persistTimeout) {
+        clearTimeout(this.persistTimeout);
+        this.persistTimeout = null;
+      }
+      // Poslední klient se odpojil a existují neuložené změny - okamžitě uložíme stav do D1, než DO usne
       this.ctx.waitUntil(this.flushToD1());
     }
   }
@@ -724,23 +740,27 @@ export class RetroRoom extends DurableObject<Env> {
    * Debounced synchronizace stavu tabule do centrální D1 databáze
    */
   private scheduleD1Flush() {
+    this.isDirty = true;
     if (this.persistTimeout) {
       clearTimeout(this.persistTimeout);
     }
 
     this.persistTimeout = setTimeout(async () => {
+      this.persistTimeout = null;
       this.ctx.waitUntil(this.flushToD1());
     }, 2000);
   }
 
   /**
-   * Uloží aktuální stav místnosti z paměti do Cloudflare D1
+   * Uloží aktuální stav místnosti z paměti do Cloudflare D1 (pouze skutečné změny)
    */
   private async flushToD1() {
-    if (!this.state) return;
+    if (!this.state || !this.isDirty || this.isFlushing) return;
+
+    this.isFlushing = true;
+    this.isDirty = false;
 
     try {
-      await ensureTablesExist(this.env.DB);
       const db = createDb(this.env.DB);
 
       // 1. Update základních metadat retrospektivy
@@ -758,9 +778,12 @@ export class RetroRoom extends DurableObject<Env> {
       const columnIds = this.state.columns.map((c) => c.id);
 
       if (columnIds.length > 0) {
-        // A. Získáme všechny karty, které jsou aktuálně v D1 pro tuto retro
-        const dbCards = await db.select().from(cards);
-        const retroDbCards = dbCards.filter((c) => columnIds.includes(c.columnId));
+        // A. Získáme pouze karty této retrospektivy, které jsou aktuálně v D1
+        const retroDbCards = await db
+          .select()
+          .from(cards)
+          .where(inArray(cards.columnId, columnIds));
+        const dbCardsMap = new Map(retroDbCards.map((c) => [c.id, c]));
         const currentCardIds = new Set(this.state.cards.map((c) => c.id));
 
         // B. Smažeme z D1 všechny karty (a jejich hlasy), které byly smazány v aplikaci
@@ -774,8 +797,19 @@ export class RetroRoom extends DurableObject<Env> {
           }
         }
 
-        // C. Uložíme / aktualizujeme aktuální karty
+        // C. Uložíme pouze nové nebo skutečně změněné karty
         for (const card of this.state.cards) {
+          const existing = dbCardsMap.get(card.id);
+          if (
+            existing &&
+            existing.columnId === card.columnId &&
+            (existing.parentCardId ?? null) === (card.parentCardId ?? null) &&
+            existing.content === card.content &&
+            existing.sortOrder === card.sortOrder
+          ) {
+            continue;
+          }
+
           await db
             .insert(cards)
             .values({
@@ -800,10 +834,19 @@ export class RetroRoom extends DurableObject<Env> {
             });
         }
 
-        // D. Synchronizace hlasů
-        const retroCardIds = new Set(this.state.cards.map((c) => c.id));
-        const dbVotes = await db.select().from(votes);
-        const retroDbVotes = dbVotes.filter((v) => retroCardIds.has(v.cardId));
+        // D. Synchronizace hlasů pouze pro tuto retrospektivu
+        const retroDbVotes = await db
+          .select({
+            id: votes.id,
+            cardId: votes.cardId,
+            userSessionId: votes.userSessionId,
+            voteType: votes.voteType,
+            createdAt: votes.createdAt,
+          })
+          .from(votes)
+          .innerJoin(cards, eq(votes.cardId, cards.id))
+          .where(inArray(cards.columnId, columnIds));
+        const dbVotesMap = new Map(retroDbVotes.map((v) => [v.id, v]));
         const currentVoteIds = new Set(this.state.votes.map((v) => v.id));
 
         // Smazat odebrané hlasy
@@ -816,21 +859,27 @@ export class RetroRoom extends DurableObject<Env> {
           }
         }
 
-        // Vložit nové nebo aktualizovat změněné hlasy
+        // Vložit pouze nové nebo změněné hlasy
         for (const vote of this.state.votes) {
+          const existing = dbVotesMap.get(vote.id);
+          const normalizedType = vote.voteType || "UP";
+          if (existing && (existing.voteType || "UP") === normalizedType) {
+            continue;
+          }
+
           await db
             .insert(votes)
             .values({
               id: vote.id,
               cardId: vote.cardId,
               userSessionId: vote.userSessionId,
-              voteType: vote.voteType || "UP",
+              voteType: normalizedType,
               createdAt: vote.createdAt,
             })
             .onConflictDoUpdate({
               target: votes.id,
               set: {
-                voteType: vote.voteType || "UP",
+                voteType: normalizedType,
               },
             });
         }
@@ -841,6 +890,7 @@ export class RetroRoom extends DurableObject<Env> {
         .select()
         .from(actionItems)
         .where(eq(actionItems.retrospectiveId, this.state.id));
+      const dbActionItemsMap = new Map(dbActionItems.map((a) => [a.id, a]));
       const currentActionItemIds = new Set(this.state.actionItems.map((a) => a.id));
 
       // Smazat odebrané akční úkoly
@@ -853,8 +903,19 @@ export class RetroRoom extends DurableObject<Env> {
         }
       }
 
-      // Vložit / aktualizovat aktuální úkoly
+      // Vložit / aktualizovat pouze nové nebo změněné úkoly
       for (const item of this.state.actionItems) {
+        const existing = dbActionItemsMap.get(item.id);
+        if (
+          existing &&
+          existing.text === item.text &&
+          (existing.assignee ?? null) === (item.assignee ?? null) &&
+          existing.status === item.status &&
+          (existing.dueDate ?? null) === (item.dueDate ?? null)
+        ) {
+          continue;
+        }
+
         await db
           .insert(actionItems)
           .values({
@@ -878,6 +939,8 @@ export class RetroRoom extends DurableObject<Env> {
       }
     } catch (err) {
       console.error("Chyba při ukládání snapshotu do D1:", err);
+    } finally {
+      this.isFlushing = false;
     }
   }
 }

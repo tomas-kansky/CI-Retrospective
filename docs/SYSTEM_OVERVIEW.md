@@ -124,7 +124,8 @@ Každá retrospektiva prochází těmito fázemi (`RetroPhase`):
 
 ### 3.3 Indikace psaní a automatické čištění přítomnosti (Presence & Typing Management)
 - **Throttling psaní**: Klient odesílá `TYPING_STATUS` s throttlem (maximálně jednou při zahájení psaní, nikoliv na každý úhoz). Server broadcastuje změnu pouze při reálné změně sloupce. Po 2,5 s neaktivity se indikátor automaticky resetuje.
-- **Offline Message Queue**: Hook `useRetroRoom.ts` disponuje frontou zpráv (`messageQueueRef`). Pokud je spojení v procesu reconnectu, akce (např. přidání karty) se nezahodí, ale automaticky odešlou okamžitě po otevření socketu.
+- **Offline Message Queue & ochrana proti reconnect smyčce**: Hook `useRetroRoom.ts` disponuje frontou zpráv (`messageQueueRef`). Při manuálním uzavření starého socketu se vždy odpojí `onclose` handlery a změny jména/barvy uživatele se posílají in-place zprávou `JOIN` bez shazování spojení.
+- **Optimalizovaná D1 perzistence (`isDirty` & diff flush)**: Durable Object `RetroRoom` sleduje příznak `isDirty` a ukládá do D1 pouze skutečně změněné nebo nově přidané karty, hlasy a akční kroky, čímž šetří denní kvótu zápisů Cloudflare D1.
 - **Sledování aktivity**: Každé spojení eviduje `lastSeen = Date.now()`.
 - Klient v hooku `useRetroRoom.ts` automaticky odesílá `CLEANUP_PRESENCE` každé **3 minuty** (a při `visibilitychange` návratu na záložku).
 - Server vynechá neaktivní zombie relace (starší než 3,5 minuty) a zachovává aktivní účastníky bez výpadku spojení.

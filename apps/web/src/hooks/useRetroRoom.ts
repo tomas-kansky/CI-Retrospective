@@ -23,27 +23,47 @@ export function useRetroRoom({ roomId, user }: UseRetroRoomOptions) {
   const socketRef = useRef<WebSocket | null>(null);
   const reconnectTimeoutRef = useRef<any>(null);
   const messageQueueRef = useRef<ClientMessage[]>([]);
+  const userRef = useRef<UserSession>(user);
+  userRef.current = user;
 
   const connect = useCallback(() => {
     if (!roomId) return;
 
-    // Uzavřít stávající spojení
-    if (socketRef.current) {
-      socketRef.current.close();
+    // Zrušit případný běžící časovač reconnectu, aby nevznikla paralelní smyčka
+    if (reconnectTimeoutRef.current) {
+      clearTimeout(reconnectTimeoutRef.current);
+      reconnectTimeoutRef.current = null;
     }
 
+    // Uzavřít stávající spojení a odpojit jeho handlery, aby starý socket nevyvolal falešný reconnect
+    if (socketRef.current) {
+      const oldWs = socketRef.current;
+      socketRef.current = null;
+      oldWs.onopen = null;
+      oldWs.onmessage = null;
+      oldWs.onerror = null;
+      oldWs.onclose = null;
+      try {
+        oldWs.close();
+      } catch {}
+    }
+
+    const currentUser = userRef.current;
     const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
     const host = window.location.host;
     const wsUrl = `${protocol}//${host}/api/room/${roomId}?roomId=${encodeURIComponent(
       roomId
-    )}&userId=${encodeURIComponent(user.id)}&userName=${encodeURIComponent(
-      user.name
-    )}&avatarColor=${encodeURIComponent(user.avatarColor)}&isFacilitator=${user.isFacilitator !== false}`;
+    )}&userId=${encodeURIComponent(currentUser.id)}&userName=${encodeURIComponent(
+      currentUser.name
+    )}&avatarColor=${encodeURIComponent(currentUser.avatarColor)}&isFacilitator=${
+      currentUser.isFacilitator !== false
+    }`;
 
     const ws = new WebSocket(wsUrl);
     socketRef.current = ws;
 
     ws.onopen = () => {
+      if (socketRef.current !== ws) return;
       setIsConnected(true);
       setLastError(null);
 
@@ -57,6 +77,7 @@ export function useRetroRoom({ roomId, user }: UseRetroRoomOptions) {
     };
 
     ws.onmessage = (event) => {
+      if (socketRef.current !== ws) return;
       try {
         const msg: ServerMessage = JSON.parse(event.data);
 
@@ -67,7 +88,7 @@ export function useRetroRoom({ roomId, user }: UseRetroRoomOptions) {
               // Zachováme lokální optimistické karty, které server ještě nestihl propsat
               const serverCardIds = new Set(msg.payload.cards.map((c) => c.id));
               const pendingLocalCards = prev.cards.filter(
-                (c) => c.authorSessionId === user.id && !serverCardIds.has(c.id)
+                (c) => c.authorSessionId === userRef.current.id && !serverCardIds.has(c.id)
               );
               return {
                 ...msg.payload,
@@ -117,26 +138,62 @@ export function useRetroRoom({ roomId, user }: UseRetroRoomOptions) {
     };
 
     ws.onclose = () => {
+      if (socketRef.current !== ws) return;
       setIsConnected(false);
       // Automatický reconnect po 2 sekundách
+      if (reconnectTimeoutRef.current) {
+        clearTimeout(reconnectTimeoutRef.current);
+      }
       reconnectTimeoutRef.current = setTimeout(() => {
+        reconnectTimeoutRef.current = null;
         connect();
       }, 2000);
     };
 
     ws.onerror = (err) => {
+      if (socketRef.current !== ws) return;
       console.warn("WebSocket chyba:", err);
       ws.close();
     };
-  }, [roomId, user.id, user.name, user.avatarColor, user.isFacilitator]);
+  }, [roomId, user.id]);
 
   useEffect(() => {
     connect();
     return () => {
-      if (reconnectTimeoutRef.current) clearTimeout(reconnectTimeoutRef.current);
-      if (socketRef.current) socketRef.current.close();
+      if (reconnectTimeoutRef.current) {
+        clearTimeout(reconnectTimeoutRef.current);
+        reconnectTimeoutRef.current = null;
+      }
+      if (socketRef.current) {
+        const oldWs = socketRef.current;
+        socketRef.current = null;
+        oldWs.onopen = null;
+        oldWs.onmessage = null;
+        oldWs.onerror = null;
+        oldWs.onclose = null;
+        try {
+          oldWs.close();
+        } catch {}
+      }
     };
   }, [connect]);
+
+  // Při změně jména, barvy nebo role aktualizujeme přítomnost přes existující socket bez shazování spojení
+  useEffect(() => {
+    if (socketRef.current && socketRef.current.readyState === WebSocket.OPEN) {
+      const joinMsg: ClientMessage = {
+        type: "JOIN",
+        payload: {
+          id: user.id,
+          name: user.name,
+          avatarColor: user.avatarColor,
+          isAnonymous: Boolean(user.isAnonymous),
+          isFacilitator: user.isFacilitator !== false,
+        },
+      };
+      socketRef.current.send(JSON.stringify(joinMsg));
+    }
+  }, [user.id, user.name, user.avatarColor, user.isAnonymous, user.isFacilitator]);
 
   // Odesílání typovaných zpráv na server s podporou offline fronty
   const sendMessage = useCallback((msg: ClientMessage) => {
