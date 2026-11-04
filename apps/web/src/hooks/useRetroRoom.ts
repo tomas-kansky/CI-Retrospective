@@ -192,7 +192,27 @@ export function useRetroRoom({ roomId, user }: UseRetroRoomOptions) {
 
   useEffect(() => {
     connect();
+
+    const handlePageDisconnect = () => {
+      if (socketRef.current) {
+        const ws = socketRef.current;
+        socketRef.current = null;
+        ws.onopen = null;
+        ws.onmessage = null;
+        ws.onerror = null;
+        ws.onclose = null;
+        try {
+          ws.close(1000, "User disconnected");
+        } catch {}
+      }
+    };
+
+    window.addEventListener("pagehide", handlePageDisconnect);
+    window.addEventListener("beforeunload", handlePageDisconnect);
+
     return () => {
+      window.removeEventListener("pagehide", handlePageDisconnect);
+      window.removeEventListener("beforeunload", handlePageDisconnect);
       if (reconnectTimeoutRef.current) {
         clearTimeout(reconnectTimeoutRef.current);
         reconnectTimeoutRef.current = null;
@@ -209,7 +229,7 @@ export function useRetroRoom({ roomId, user }: UseRetroRoomOptions) {
         oldWs.onerror = null;
         oldWs.onclose = null;
         try {
-          oldWs.close();
+          oldWs.close(1000, "User disconnected");
         } catch {}
       }
     };

@@ -12,7 +12,7 @@
 - **Nulová latence**: Okamžitá synchronizace přes WebSockets a Cloudflare Durable Objects.
 - **Čisté a přímočaré rozhraní**: Všechny karty (s limitem max. 255 znaků, počítadlem délky a možností inline úpravy textu výhradně jejich autorem) jsou ihned viditelné v reálném čase bez zdržování přepínáním fází či odmaskováváním.
 - **Hierarchické seskupování karet**: Přetažením karty na jinou kartu vzniká skupina myšlenek (`parentCardId`).
-- **Anonymní zvířata**: Přátelské a vtipné generování jmen ve stylu Google Docs (např. *Anonymní Vombat*, *Anonymní Axolotl*).
+- **Anonymní zvířata (dočasná relace)**: Přátelské a vtipné generování jmen ve stylu Google Docs (např. *Anonymní Vombat*, *Anonymní Axolotl*). Jméno (včetně případné vlastní úpravy) platí pouze po dobu aktivního připojení uživatele v aplikaci a nikdy se trvale neukládá do `localStorage`; po odpojení nebo opuštění místnosti se automaticky odstraní.
 - **Časovač & Globální Akční kroky**: Synchronizovaný odpočet s předvolbami i vlastním časem, sjednocená správa globálních Akčních kroků napříč všemi boards (jak v bočním panelu na tabuli, tak na hlavní stránce) se záložkami *Vše*, *K vyřešení* (výchozí) a *Hotovo*, tlačítkem *Mark as Done* a přenosem karet z tabule.
 - **Sdílení s QR kódem**: Rychlé pozvání účastníků do místnosti přes generovaný QR kód i přímý URL odkaz s možností stažení PNG.
 - **Serverless Edge architektura**: 100% běh na Cloudflare ekosystému (Workers, Durable Objects, D1 SQLite).

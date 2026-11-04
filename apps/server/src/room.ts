@@ -607,6 +607,18 @@ export class RetroRoom extends DurableObject<Env> {
    * Klient se odpojil (vyvoláno z Hibernation API)
    */
   async webSocketClose(ws: WebSocket, code: number, reason: string, wasClean: boolean) {
+    // Okamžitě vymažeme identitu a jméno z odpojeného socketu, aby se po odpojení jméno ihned odstranilo
+    try {
+      ws.serializeAttachment({
+        roomId: "",
+        userId: "",
+        name: "",
+        avatarColor: "",
+        isFacilitator: false,
+        lastSeen: 0,
+      });
+    } catch {}
+
     // Odložíme broadcast přítomnosti o 10s, aby při F5 nebo krátkém reconnectu počet lidí necukal (např. 4 -> 3 -> 4)
     this.schedulePresenceBroadcast(10000);
     const remaining = this.ctx.getWebSockets().filter((s) => s !== ws && s.readyState === 1);
@@ -624,6 +636,16 @@ export class RetroRoom extends DurableObject<Env> {
    * Chyba WebSocket spojení
    */
   async webSocketError(ws: WebSocket, error: any) {
+    try {
+      ws.serializeAttachment({
+        roomId: "",
+        userId: "",
+        name: "",
+        avatarColor: "",
+        isFacilitator: false,
+        lastSeen: 0,
+      });
+    } catch {}
     this.schedulePresenceBroadcast(10000);
   }
 
@@ -695,9 +717,20 @@ export class RetroRoom extends DurableObject<Env> {
       }
 
       const att = ws.deserializeAttachment() as SocketAttachment;
-      if (att && att.userId) {
-        // Kontrola nečinnosti: pokud je spojení neaktivní déle než časový limit, vynecháme ze zobrazení
-        if (att.lastSeen && now - att.lastSeen > INACTIVITY_TIMEOUT_MS) {
+      if (att && att.userId && att.name) {
+        // Kontrola nečinnosti: pokud chybí lastSeen nebo je spojení neaktivní déle než časový limit, vymažeme a uzavřeme
+        if (!att.lastSeen || now - att.lastSeen > INACTIVITY_TIMEOUT_MS) {
+          try {
+            ws.serializeAttachment({
+              roomId: "",
+              userId: "",
+              name: "",
+              avatarColor: "",
+              isFacilitator: false,
+              lastSeen: 0,
+            });
+            ws.close(4000, "Inactive session expired");
+          } catch {}
           continue;
         }
 

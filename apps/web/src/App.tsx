@@ -15,30 +15,13 @@ interface RetroItem {
   createdAt: string;
 }
 
-// Inicializace nebo načtení uživatelského profilu ze sessionStorage/localStorage
-function getOrCreateUserSession(): UserSession {
-  const saved = localStorage.getItem("ci_retro_user");
-  if (saved) {
-    try {
-      const parsed = JSON.parse(saved);
-      if (parsed && typeof parsed === "object") {
-        if (parsed.isFacilitator === undefined) {
-          parsed.isFacilitator = true;
-        }
-        // Pokud má uživatel staré jméno typu "Kolega #...", vyměníme ho za vtipné zvíře ve stylu Google Docs
-        if (
-          !parsed.name ||
-          parsed.name.startsWith("Kolega #") ||
-          parsed.name.startsWith("Kolega#") ||
-          parsed.name === "Kolega"
-        ) {
-          parsed.name = getRandomAnonymousName();
-        }
-        localStorage.setItem("ci_retro_user", JSON.stringify(parsed));
-        return parsed;
-      }
-    } catch {}
-  }
+// Vytvoření dočasného (in-memory) uživatelského profilu pouze po dobu aktivního připojení v aplikaci.
+// Jakmile se uživatel odpojí / zavře či obnoví stránku, jeho jméno se odstraní a příště dostane nové.
+function createEphemeralUserSession(): UserSession {
+  try {
+    localStorage.removeItem("ci_retro_user");
+    sessionStorage.removeItem("ci_retro_user");
+  } catch {}
 
   const colors = [
     "#6366f1",
@@ -54,21 +37,18 @@ function getOrCreateUserSession(): UserSession {
   ];
   const randomColor = colors[Math.floor(Math.random() * colors.length)];
 
-  const newUser: UserSession = {
+  return {
     id: crypto.randomUUID(),
     name: getRandomAnonymousName(),
     avatarColor: randomColor,
     isAnonymous: false,
-    isFacilitator: true, // Výchozí facilitátor pro lokální tvorbu
+    isFacilitator: true,
   };
-
-  localStorage.setItem("ci_retro_user", JSON.stringify(newUser));
-  return newUser;
 }
 
 export const App: React.FC = () => {
   const [theme, setTheme] = useState<"dark" | "light">("dark");
-  const [currentUser, setCurrentUser] = useState<UserSession>(getOrCreateUserSession);
+  const [currentUser, setCurrentUser] = useState<UserSession>(createEphemeralUserSession);
   const [currentRoomId, setCurrentRoomId] = useState<string | null>(null);
 
   const [retros, setRetros] = useState<RetroItem[]>([]);
@@ -104,6 +84,40 @@ export const App: React.FC = () => {
   useEffect(() => {
     document.documentElement.setAttribute("data-theme", theme);
   }, [theme]);
+
+  // Pokud byla záložka na pozadí neaktivní déle než 15 minut (nebo se uživatel vrátil další týden),
+  // vygenerujeme novou dočasnou relaci s novým náhodným jménem
+  useEffect(() => {
+    let hiddenAt: number | null = null;
+    const SESSION_EXPIRY_MS = 15 * 60 * 1000;
+
+    const handleVisibility = () => {
+      if (document.visibilityState === "hidden") {
+        hiddenAt = Date.now();
+      } else if (document.visibilityState === "visible") {
+        if (hiddenAt && Date.now() - hiddenAt > SESSION_EXPIRY_MS) {
+          setCurrentUser(createEphemeralUserSession());
+        }
+        hiddenAt = null;
+      }
+    };
+
+    const handleUnload = () => {
+      try {
+        localStorage.removeItem("ci_retro_user");
+        sessionStorage.removeItem("ci_retro_user");
+      } catch {}
+    };
+
+    document.addEventListener("visibilitychange", handleVisibility);
+    window.addEventListener("pagehide", handleUnload);
+    window.addEventListener("beforeunload", handleUnload);
+    return () => {
+      document.removeEventListener("visibilitychange", handleVisibility);
+      window.removeEventListener("pagehide", handleUnload);
+      window.removeEventListener("beforeunload", handleUnload);
+    };
+  }, []);
 
   const loadRetrospectives = async () => {
     setIsLoading(true);
@@ -177,6 +191,8 @@ export const App: React.FC = () => {
 
   const handleBackToDashboard = () => {
     window.location.hash = "";
+    // Při odpojení z místnosti resetujeme dočasné jméno na nové náhodné zvíře
+    setCurrentUser(createEphemeralUserSession());
     loadRetrospectives();
     loadActionItemsCount();
   };
@@ -250,7 +266,6 @@ export const App: React.FC = () => {
           onBack={handleBackToDashboard}
           onUpdateUser={(updated) => {
             setCurrentUser(updated);
-            localStorage.setItem("ci_retro_user", JSON.stringify(updated));
           }}
         />
       </div>
