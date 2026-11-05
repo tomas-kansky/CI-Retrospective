@@ -4,14 +4,11 @@ import {
   type RetrospectiveState,
   type Card,
   type Vote,
-  type ActionItem,
-  type Column,
   type UserSession,
-  type ClientMessage,
   type ServerMessage,
   ClientMessageSchema,
 } from "@ci-retro/types";
-import { createDb, ensureTablesExist, retrospectives, columns, cards, votes, actionItems } from "./db";
+import { createDb, ensureTablesExist, retrospectives, cards, votes } from "./db";
 
 export interface Env {
   RETRO_ROOM: DurableObjectNamespace<RetroRoom>;
@@ -49,11 +46,6 @@ export class RetroRoom extends DurableObject<Env> {
    */
   private async ensureStateLoaded(roomIdParam?: string): Promise<RetrospectiveState> {
     if (this.state && this.isLoadedFromDb) {
-      if (this.state.id === "7da59842-0286-4616-a531-c9049066d495" && this.state.title !== "8.10.2026") {
-        this.state.title = "8.10.2026";
-      } else if (this.state.id === "b83d5d54-74c2-46f7-af6a-eb8326007ea6" && this.state.title !== "22.10.2026") {
-        this.state.title = "22.10.2026";
-      }
       return this.state;
     }
 
@@ -494,24 +486,6 @@ export class RetroRoom extends DurableObject<Env> {
           break;
         }
 
-        case "SET_PHASE": {
-          this.state.phase = clientMsg.payload.phase;
-          // Pokud přecházíme z brainstormingu do čtení nebo hlasování, automaticky odemkneme karty
-          if (clientMsg.payload.phase !== "BRAINSTORMING") {
-            this.state.cardsBlurred = false;
-          }
-          this.broadcastState();
-          this.scheduleD1Flush();
-          break;
-        }
-
-        case "TOGGLE_BLUR": {
-          this.state.cardsBlurred = clientMsg.payload.blurred;
-          this.broadcastState();
-          this.scheduleD1Flush();
-          break;
-        }
-
         case "TIMER_CONTROL": {
           const action = clientMsg.payload.action;
           const duration = clientMsg.payload.durationSecs || this.state.timerDurationSecs || 300;
@@ -531,41 +505,6 @@ export class RetroRoom extends DurableObject<Env> {
 
           this.broadcastState();
           this.scheduleD1Flush();
-          break;
-        }
-
-        case "ADD_ACTION_ITEM": {
-          const item: ActionItem = {
-            id: crypto.randomUUID(),
-            retrospectiveId: this.state.id,
-            text: clientMsg.payload.text.trim(),
-            assignee: clientMsg.payload.assignee,
-            status: "OPEN",
-            dueDate: clientMsg.payload.dueDate,
-            createdAt: new Date().toISOString(),
-          };
-          this.state.actionItems.push(item);
-          this.broadcastState();
-          this.scheduleD1Flush();
-          break;
-        }
-
-        case "UPDATE_ACTION_ITEM": {
-          const item = this.state.actionItems.find((a) => a.id === clientMsg.payload.id);
-          if (item) {
-            item.status = clientMsg.payload.status;
-            this.broadcastState();
-            this.scheduleD1Flush();
-          }
-          break;
-        }
-
-        case "DELETE_ACTION_ITEM": {
-          const beforeLen = this.state.actionItems.length;
-          this.state.actionItems = this.state.actionItems.filter((a) => a.id !== clientMsg.payload.id);
-          if (this.state.actionItems.length !== beforeLen) {
-            this.broadcastState();
-          }
           break;
         }
 

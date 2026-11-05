@@ -173,43 +173,10 @@ export const ClientMessageSchema = z.discriminatedUnion("type", [
     }),
   }),
   z.object({
-    type: z.literal("SET_PHASE"),
-    payload: z.object({
-      phase: RetroPhaseSchema,
-    }),
-  }),
-  z.object({
-    type: z.literal("TOGGLE_BLUR"),
-    payload: z.object({
-      blurred: z.boolean(),
-    }),
-  }),
-  z.object({
     type: z.literal("TIMER_CONTROL"),
     payload: z.object({
       action: z.enum(["START", "PAUSE", "RESET", "ADD_MINUTE"]),
       durationSecs: z.number().optional(),
-    }),
-  }),
-  z.object({
-    type: z.literal("ADD_ACTION_ITEM"),
-    payload: z.object({
-      text: z.string(),
-      assignee: z.string().optional(),
-      dueDate: z.string().optional(),
-    }),
-  }),
-  z.object({
-    type: z.literal("UPDATE_ACTION_ITEM"),
-    payload: z.object({
-      id: z.string(),
-      status: ActionItemStatusSchema,
-    }),
-  }),
-  z.object({
-    type: z.literal("DELETE_ACTION_ITEM"),
-    payload: z.object({
-      id: z.string(),
     }),
   }),
   z.object({

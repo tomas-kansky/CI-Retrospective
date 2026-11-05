@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { X, Copy, Check, QrCode, Download, ExternalLink, Users } from "lucide-react";
+import { X, Copy, Check, QrCode, Download, Users } from "lucide-react";
 import QRCode from "qrcode";
 
 interface ShareModalProps {

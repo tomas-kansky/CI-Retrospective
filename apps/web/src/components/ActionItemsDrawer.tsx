@@ -12,24 +12,20 @@ import {
   Ban,
   Trash2,
 } from "lucide-react";
-import type { ActionItem, ActionItemStatus, GlobalActionItem } from "@ci-retro/types";
+import type { ActionItemStatus, GlobalActionItem } from "@ci-retro/types";
 
 interface ActionItemsDrawerProps {
   roomId: string;
   roomTitle: string;
-  actionItems: ActionItem[];
   boardActionColumnTexts?: string[];
   isOpen: boolean;
   onClose: () => void;
-  onAdd?: (text: string) => void;
-  onToggleStatus?: (id: string, newStatus: ActionItemStatus) => void;
   onGlobalOpenCountChange?: (count: number) => void;
 }
 
 export const ActionItemsDrawer: React.FC<ActionItemsDrawerProps> = ({
   roomId,
   roomTitle,
-  actionItems,
   boardActionColumnTexts = [],
   isOpen,
   onClose,
@@ -78,7 +74,7 @@ export const ActionItemsDrawer: React.FC<ActionItemsDrawerProps> = ({
       setOpenMenuId(null);
       loadGlobalItems();
     }
-  }, [isOpen, loadGlobalItems, actionItems.length]);
+  }, [isOpen, loadGlobalItems]);
 
   if (!isOpen) return null;
 

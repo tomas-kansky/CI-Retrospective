@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { Sparkles, Moon, Sun, Plus, RefreshCw, Layers, CheckCircle2, ChevronRight, X, ArrowRight, Bug, CheckSquare } from "lucide-react";
+import { Sparkles, Moon, Sun, Plus, RefreshCw, Layers, X, ArrowRight, Bug, CheckSquare } from "lucide-react";
 import type { TemplateType, UserSession } from "@ci-retro/types";
 import { BoardView } from "./components/BoardView";
 import { BugReportModal } from "./components/BugReportModal";
@@ -514,53 +514,18 @@ export const App: React.FC = () => {
                 marginBottom: "10px",
               }}
             >
-              <Sparkles size={14} /> Fáze 2: WebSocket Hibernation & Real-time Edge
+              <Sparkles size={14} /> Real-time kolaborace přes Cloudflare Edge
             </div>
             <h2 style={{ fontSize: "2rem", fontWeight: 800, letterSpacing: "-0.03em", marginBottom: "8px" }}>
               Agilní retrospektivy bez hranic
             </h2>
             <p style={{ color: "var(--text-muted)", fontSize: "1rem", maxWidth: "560px" }}>
               Blesková synchronizace přes Cloudflare Durable Objects s podporou atomického hlasování,
-              bezpečného maskování karet a odpočtu času.
+              seskupování myšlenek a společného odpočtu času.
             </p>
           </div>
 
           <div style={{ display: "flex", gap: "12px", flexWrap: "wrap", alignItems: "center" }}>
-            <button
-              onClick={() => setIsTasksModalOpen(true)}
-              style={{
-                padding: "12px 20px",
-                borderRadius: "var(--radius-md)",
-                background: "var(--bg-card)",
-                color: "var(--text-main)",
-                fontWeight: 600,
-                fontSize: "0.95rem",
-                display: "flex",
-                alignItems: "center",
-                gap: "8px",
-                border: "1px solid var(--border-color)",
-                cursor: "pointer",
-              }}
-            >
-              <CheckSquare size={18} color="var(--accent-emerald)" />
-              <span>Úkolovník</span>
-              {openActionItemsCount > 0 && (
-                <span
-                  style={{
-                    background: "rgba(16, 185, 129, 0.15)",
-                    color: "var(--accent-emerald)",
-                    border: "1px solid rgba(16, 185, 129, 0.3)",
-                    padding: "1px 7px",
-                    borderRadius: "var(--radius-full)",
-                    fontSize: "0.78rem",
-                    fontWeight: 700,
-                  }}
-                >
-                  {openActionItemsCount}
-                </span>
-              )}
-            </button>
-
             <button
               onClick={handleOpenCreateModal}
               style={{

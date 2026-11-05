@@ -31,7 +31,7 @@ CI Retrospective/
 │   │   │   ├── components/
 │   │   │   │   ├── BoardView.tsx         # Hlavní plocha retrospektivy, sloupce, karty, DnD, řazení dle hlasů
 │   │   │   │   ├── ActionItemsDrawer.tsx # Postranní panel akčních kroků (úkolů)
-│   │   │   │   ├── ExportModal.tsx       # Export do Markdownu a CSV
+│   │   │   │   ├── AnimalGalleryModal.tsx # Atlas a fotogalerie reálných zvířátek z přírody
 │   │   │   │   ├── ShareModal.tsx        # Dialog sdílení s URL, tlačítkem kopírování a QR kódem
 │   │   │   │   ├── BugReportModal.tsx    # Hlášení chyb a zpětné vazby z UI přímo do databáze
 │   │   │   │   └── GlobalActionItemsModal.tsx # Centrální úkolovník / checklist ze všech retrospektiv
@@ -116,7 +116,7 @@ Každá retrospektiva prochází těmito fázemi (`RetroPhase`):
 
 ### 3.2 WebSocket komunikace
 - Klient odesílá zprávy typu `ClientMessage` (validováno přes `ClientMessageSchema` v `packages/types`):
-  - `JOIN`, `ADD_CARD`, `UPDATE_CARD`, `DELETE_CARD`, `MOVE_CARD`, `GROUP_CARDS`, `UNGROUP_CARD`, `CAST_VOTE` (s volitelným `voteType: "UP" | "DOWN"`), `REMOVE_VOTE`, `SET_PHASE`, `TOGGLE_BLUR`, `TIMER_CONTROL`, `TYPING_STATUS`, `ADD_ACTION_ITEM`, `UPDATE_ACTION_ITEM`, `CLEANUP_PRESENCE`.
+  - `JOIN`, `ADD_CARD`, `UPDATE_CARD`, `DELETE_CARD`, `MOVE_CARD`, `GROUP_CARDS`, `UNGROUP_CARD`, `CAST_VOTE` (s volitelným `voteType: "UP" | "DOWN"`), `REMOVE_VOTE`, `TIMER_CONTROL`, `TYPING_STATUS`, `CLEANUP_PRESENCE`.
 - Server vysílá zprávy typu `ServerMessage`:
   - `SYNC_STATE`: Kompletní stav retrospektivy (s aplikovaným server-side maskováním; zachovává lokální optimistické karty v letu).
   - `PRESENCE_UPDATE`: Seznam aktivních účastníků a indikátory psaní (deduplikovaný a memoizovaný, aby nedocházelo k poblikávání).

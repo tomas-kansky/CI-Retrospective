@@ -112,41 +112,6 @@ export async function ensureTablesExist(d1: D1Database) {
       // Sloupec již existuje, ignorujeme
     }
 
-    // Vyčištění testovacích retrospektiv (Test, CI_01) a sjednocení názvů retrospektiv 8.10.2026 a 22.10.2026
-    try {
-      await d1.batch([
-        d1.prepare(`
-          DELETE FROM votes WHERE card_id IN (
-            SELECT id FROM cards WHERE column_id IN (
-              SELECT id FROM columns WHERE retrospective_id IN ('f2c43aa1-491b-4fee-8a7c-10e79de74a76', '68661253-aff0-40f3-a4d8-ed50fd5f6be2')
-            )
-          )
-        `),
-        d1.prepare(`
-          DELETE FROM cards WHERE column_id IN (
-            SELECT id FROM columns WHERE retrospective_id IN ('f2c43aa1-491b-4fee-8a7c-10e79de74a76', '68661253-aff0-40f3-a4d8-ed50fd5f6be2')
-          )
-        `),
-        d1.prepare(`
-          DELETE FROM columns WHERE retrospective_id IN ('f2c43aa1-491b-4fee-8a7c-10e79de74a76', '68661253-aff0-40f3-a4d8-ed50fd5f6be2')
-        `),
-        d1.prepare(`
-          DELETE FROM action_items WHERE retrospective_id IN ('f2c43aa1-491b-4fee-8a7c-10e79de74a76', '68661253-aff0-40f3-a4d8-ed50fd5f6be2')
-        `),
-        d1.prepare(`
-          DELETE FROM retrospectives WHERE id IN ('f2c43aa1-491b-4fee-8a7c-10e79de74a76', '68661253-aff0-40f3-a4d8-ed50fd5f6be2') OR title IN ('Test', 'CI_01')
-        `),
-        d1.prepare(`
-          UPDATE retrospectives SET title = '8.10.2026' WHERE id = '7da59842-0286-4616-a531-c9049066d495' OR title IN ('8.10.', '8.10. Client Interactions')
-        `),
-        d1.prepare(`
-          UPDATE retrospectives SET title = '22.10.2026' WHERE id = 'b83d5d54-74c2-46f7-af6a-eb8326007ea6' OR title IN ('22.10.', '22.1O.')
-        `),
-      ]);
-    } catch (cleanupErr) {
-      console.error("Retrospectives cleanup/rename migration error:", cleanupErr);
-    }
-
     tablesInitialized = true;
   } catch (err) {
     console.error("Auto table migration error:", err);

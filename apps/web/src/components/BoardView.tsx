@@ -61,7 +61,6 @@ interface DraggableCardProps {
   onDelete: () => void;
   canEdit?: boolean;
   onUpdate?: (newContent: string) => void;
-  isMasked?: boolean;
   isChild?: boolean;
   onUngroup?: () => void;
   activeDragCardId?: string | null;
@@ -78,7 +77,6 @@ const DraggableCard: React.FC<DraggableCardProps> = ({
   onDelete,
   canEdit = false,
   onUpdate,
-  isMasked = false,
   isChild = false,
   onUngroup,
   activeDragCardId,
@@ -303,22 +301,20 @@ const DraggableCard: React.FC<DraggableCardProps> = ({
         ) : (
           <p
             onDoubleClick={() => {
-              if (canEdit && !isMasked) {
+              if (canEdit) {
                 setEditText(card.content);
                 setIsEditing(true);
               }
             }}
-            title={canEdit && !isMasked ? "Dvojklikem upravíte text karty" : undefined}
+            title={canEdit ? "Dvojklikem upravíte text karty" : undefined}
             style={{
               flex: 1,
               fontSize: isChild ? "0.88rem" : "0.92rem",
               lineHeight: "1.45",
               margin: 0,
               wordBreak: "break-word",
-              filter: isMasked ? "blur(3px)" : "none",
-              userSelect: isMasked ? "none" : "text",
-              opacity: isMasked ? 0.6 : 1,
-              cursor: canEdit && !isMasked ? "text" : "default",
+              userSelect: "text",
+              cursor: canEdit ? "text" : "default",
             }}
           >
             {card.content}
@@ -452,7 +448,7 @@ const DraggableCard: React.FC<DraggableCardProps> = ({
           </div>
 
           {/* Edit Button (pouze pro autora karty) */}
-          {canEdit && !isMasked && !isEditing && (
+          {canEdit && !isEditing && (
             <button
               type="button"
               onClick={(e) => {
@@ -557,8 +553,6 @@ export const BoardView: React.FC<BoardViewProps> = ({ roomId, user, onBack, onUp
     removeVote,
     controlTimer,
     setTyping,
-    addActionItem,
-    updateActionItem,
   } = useRetroRoom({ roomId, user });
 
   // Lokální stavy pro modály a formuláře
@@ -1899,7 +1893,6 @@ export const BoardView: React.FC<BoardViewProps> = ({ roomId, user, onBack, onUp
                             onDelete={() => deleteCard(rootCard.id)}
                             canEdit={rootCard.authorSessionId === user.id}
                             onUpdate={(newContent) => updateCard(rootCard.id, newContent)}
-                            isMasked={rootCard.content === "••••••••••••"}
                             activeDragCardId={activeCard?.id || null}
                           />
 
@@ -1936,7 +1929,6 @@ export const BoardView: React.FC<BoardViewProps> = ({ roomId, user, onBack, onUp
                                   onDelete={() => deleteCard(child.id)}
                                   canEdit={child.authorSessionId === user.id}
                                   onUpdate={(newContent) => updateCard(child.id, newContent)}
-                                  isMasked={child.content === "••••••••••••"}
                                   isChild={true}
                                   onUngroup={() => ungroupCard(child.id)}
                                   activeDragCardId={activeCard?.id || null}
@@ -1970,7 +1962,6 @@ export const BoardView: React.FC<BoardViewProps> = ({ roomId, user, onBack, onUp
                         onDelete={() => deleteCard(rootCard.id)}
                         canEdit={rootCard.authorSessionId === user.id}
                         onUpdate={(newContent) => updateCard(rootCard.id, newContent)}
-                        isMasked={rootCard.content === "••••••••••••"}
                         activeDragCardId={activeCard?.id || null}
                       />
                     );
@@ -2131,7 +2122,6 @@ export const BoardView: React.FC<BoardViewProps> = ({ roomId, user, onBack, onUp
       <ActionItemsDrawer
         roomId={roomId}
         roomTitle={state.title}
-        actionItems={state.actionItems || []}
         boardActionColumnTexts={state.cards
           .filter((card) => {
             const col = state.columns.find((c) => c.id === card.columnId);
@@ -2142,8 +2132,6 @@ export const BoardView: React.FC<BoardViewProps> = ({ roomId, user, onBack, onUp
           .map((c) => c.content)}
         isOpen={isActionItemsOpen}
         onClose={() => setIsActionItemsOpen(false)}
-        onAdd={addActionItem}
-        onToggleStatus={(id, status) => updateActionItem(id, status)}
         onGlobalOpenCountChange={setGlobalOpenActionItemsCount}
       />
 

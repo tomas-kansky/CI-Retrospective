@@ -4,7 +4,6 @@ import type {
   UserSession,
   ClientMessage,
   ServerMessage,
-  RetroPhase,
   Card,
 } from "@ci-retro/types";
 
@@ -396,26 +395,6 @@ export function useRetroRoom({ roomId, user }: UseRetroRoomOptions) {
     [sendMessage, user.id]
   );
 
-  const setPhase = useCallback(
-    (phase: RetroPhase) => {
-      sendMessage({
-        type: "SET_PHASE",
-        payload: { phase },
-      });
-    },
-    [sendMessage]
-  );
-
-  const toggleBlur = useCallback(
-    (blurred: boolean) => {
-      sendMessage({
-        type: "TOGGLE_BLUR",
-        payload: { blurred },
-      });
-    },
-    [sendMessage]
-  );
-
   const controlTimer = useCallback(
     (action: "START" | "PAUSE" | "RESET" | "ADD_MINUTE", durationSecs: number = 300) => {
       // Optimistická aktualizace odpočtu
@@ -530,26 +509,6 @@ export function useRetroRoom({ roomId, user }: UseRetroRoomOptions) {
     [sendMessage]
   );
 
-  const addActionItem = useCallback(
-    (text: string, assignee?: string, dueDate?: string) => {
-      sendMessage({
-        type: "ADD_ACTION_ITEM",
-        payload: { text, assignee, dueDate },
-      });
-    },
-    [sendMessage]
-  );
-
-  const updateActionItem = useCallback(
-    (id: string, status: "OPEN" | "IN_PROGRESS" | "DONE" | "CANCELLED") => {
-      sendMessage({
-        type: "UPDATE_ACTION_ITEM",
-        payload: { id, status },
-      });
-    },
-    [sendMessage]
-  );
-
   const cleanupPresence = useCallback(() => {
     sendMessage({
       type: "CLEANUP_PRESENCE",
@@ -586,7 +545,6 @@ export function useRetroRoom({ roomId, user }: UseRetroRoomOptions) {
     isConnected,
     lastError,
     remainingVotes,
-    userVotesCount,
     addCard,
     updateCard,
     deleteCard,
@@ -595,12 +553,8 @@ export function useRetroRoom({ roomId, user }: UseRetroRoomOptions) {
     ungroupCard,
     castVote,
     removeVote,
-    setPhase,
-    toggleBlur,
     controlTimer,
     setTyping,
-    addActionItem,
-    updateActionItem,
     cleanupPresence,
   };
 }
