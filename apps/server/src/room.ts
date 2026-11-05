@@ -49,6 +49,11 @@ export class RetroRoom extends DurableObject<Env> {
    */
   private async ensureStateLoaded(roomIdParam?: string): Promise<RetrospectiveState> {
     if (this.state && this.isLoadedFromDb) {
+      if (this.state.id === "7da59842-0286-4616-a531-c9049066d495" && this.state.title !== "8.10.2026") {
+        this.state.title = "8.10.2026";
+      } else if (this.state.id === "b83d5d54-74c2-46f7-af6a-eb8326007ea6" && this.state.title !== "22.10.2026") {
+        this.state.title = "22.10.2026";
+      }
       return this.state;
     }
 

@@ -216,6 +216,44 @@ app.get("/api/retrospectives/:id", async (c) => {
   return c.json({ retrospective: retro });
 });
 
+// Přejmenování retrospektivy
+app.patch("/api/retrospectives/:id", async (c) => {
+  const id = c.req.param("id");
+  const body = await c.req.json<{ title: string }>();
+  const trimmedTitle = body.title?.trim();
+  if (!trimmedTitle) {
+    return c.json({ error: "Chybí nový název retrospektivy" }, 400);
+  }
+
+  const db = createDb(c.env.DB);
+  await db
+    .update(retrospectives)
+    .set({ title: trimmedTitle })
+    .where(eq(retrospectives.id, id));
+
+  return c.json({ success: true, id, title: trimmedTitle });
+});
+
+// Smazání retrospektivy včetně navázaných sloupců, karet a hlasů
+app.delete("/api/retrospectives/:id", async (c) => {
+  const id = c.req.param("id");
+  const db = createDb(c.env.DB);
+
+  const cols = await db.select({ id: columns.id }).from(columns).where(eq(columns.retrospectiveId, id));
+  for (const col of cols) {
+    const colCards = await db.select({ id: cards.id }).from(cards).where(eq(cards.columnId, col.id));
+    for (const card of colCards) {
+      await db.delete(votes).where(eq(votes.cardId, card.id));
+    }
+    await db.delete(cards).where(eq(cards.columnId, col.id));
+  }
+  await db.delete(columns).where(eq(columns.retrospectiveId, id));
+  await db.delete(actionItems).where(eq(actionItems.retrospectiveId, id));
+  await db.delete(retrospectives).where(eq(retrospectives.id, id));
+
+  return c.json({ success: true, id });
+});
+
 // Vytvoření nové retrospektivy se zvolenou šablonou
 app.post("/api/retrospectives", async (c) => {
   const body = await c.req.json<{
