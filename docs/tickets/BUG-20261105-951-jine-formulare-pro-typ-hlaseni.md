@@ -2,7 +2,7 @@
 id: "BUG-20261105-951"
 title: "Jiné formuláře pro Typ hlášení (Nahlásit chybu)"
 type: "feature"
-status: "open"
+status: "resolved"
 priority: "medium"
 createdAt: "2026-11-05T12:18:34.765Z"
 author:
@@ -46,6 +46,10 @@ Zároveň bych přidal další optional parametr a to možnost vložení obrázk
 
 ## 🛠️ Návrh řešení & Historie oprav
 *(Tuto sekci doplňuje řešitel při opravě)*
-- **Příčina**: 
-- **Změny**: 
-- **Commit**: 
+- **Příčina**: Formulář `BugReportModal.tsx` zobrazoval pro všechny typy hlášení (včetně `Nápad`) stejná pole zaměřená na chyby (Kroky k reprodukci, Závažnost chyby) a obsahoval nevyužívanou kategorii `Vzhled / UX`. Zároveň chyběla možnost přiložit screenshot přímo ze schránky (`Ctrl+V`).
+- **Změny**:
+  - V `apps/web/src/components/BugReportModal.tsx` odstraněna kategorie `Vzhled / UX` (ponechána pouze `Chyba` a `Nápad`).
+  - Vytvořeny odlišné formuláře podle zvoleného typu: pro `Chyba` (`bug`) se zobrazuje popis problému, kroky k reprodukci a závažnost chyby; pro `Nápad` (`feature`) se zobrazuje název nápadu, popis fungování a volitelné pole *Přínos / Jaký problém to řeší*.
+  - Doplněna podpora pro volitelné přiložení obrázku / screenshotu přímo ze schránky (`Ctrl+V` / `Cmd+V`), přetažením myšítkem (drag & drop) nebo výběrem souboru s automatickou klientskou kompresí přes `<canvas>`.
+  - V `packages/types/src/index.ts`, `apps/server/src/db/schema.ts`, `apps/server/src/db/index.ts` a `apps/server/src/index.ts` doplněno pole `screenshot` do D1 databáze i do generovaného Markdown souboru ticketu (`## 🖼️ Přiložený obrázek`).
+- **Commit**: `feat: resolve BUG-20261105-951 separate bug and idea forms with clipboard image paste`

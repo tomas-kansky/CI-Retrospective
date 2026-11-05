@@ -396,16 +396,13 @@ ${defangUntrustedText(t.description)}
 \`\`\`
 
 ${t.stepsToReproduce ? `## 🔁 Kroky k reprodukci (Untrusted user input)\n\`\`\`text\n${defangUntrustedText(t.stepsToReproduce)}\n\`\`\`\n` : ""}
-${t.expectedBehavior || t.actualBehavior ? `## ⚠️ Očekávané vs. reálné chování (Untrusted user input)
-- **Očekávané**:
+${t.expectedBehavior || t.actualBehavior ? `## ⚠️ Očekávané vs. reálné chování / Přínos (Untrusted user input)
+- **Očekávané / Přínos**:
 \`\`\`text
 ${defangUntrustedText(t.expectedBehavior || "Neuvedeno")}
 \`\`\`
-- **Reálné**:
-\`\`\`text
-${defangUntrustedText(t.actualBehavior || "Neuvedeno")}
-\`\`\`
-` : ""}
+${t.actualBehavior ? `- **Reálné**:\n\`\`\`text\n${defangUntrustedText(t.actualBehavior)}\n\`\`\`\n` : ""}` : ""}
+${t.screenshot && t.screenshot.startsWith("data:image/") ? `## 🖼️ Přiložený obrázek\n![Přiložený obrázek](${t.screenshot})\n` : ""}
 ## 💻 Technický kontext a telemetrie
 - **Místnost**: \`${t.roomId || "N/A"}\`
 - **Fáze**: \`${t.phase || "N/A"}\`
@@ -544,6 +541,7 @@ app.post("/api/tickets", async (c) => {
     userAgent: data.userAgent || null,
     screenResolution: data.screenResolution || null,
     consoleErrors: data.consoleErrors || null,
+    screenshot: data.screenshot || null,
     githubCommitUrl: null as string | null,
     filePath,
     createdAt: now,

@@ -279,6 +279,11 @@ export const CreateTicketSchema = z.object({
   userAgent: z.string().trim().max(500).optional(),
   screenResolution: z.string().trim().max(50).optional(),
   consoleErrors: z.string().max(10000).optional(),
+  screenshot: z
+    .string()
+    .max(1500000, "Obrázek je příliš velký")
+    .refine((val) => val.startsWith("data:image/"), "Neplatný formát obrázku")
+    .optional(),
 });
 export type CreateTicketInput = z.infer<typeof CreateTicketSchema>;
 

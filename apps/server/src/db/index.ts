@@ -91,6 +91,7 @@ export async function ensureTablesExist(d1: D1Database) {
           user_agent text,
           screen_resolution text,
           console_errors text,
+          screenshot text,
           github_commit_url text,
           file_path text,
           created_at text NOT NULL,
@@ -99,9 +100,14 @@ export async function ensureTablesExist(d1: D1Database) {
       `),
     ]);
 
-    // Bezpečná migrace pro stávající tabulky bez sloupce vote_type
+    // Bezpečná migrace pro stávající tabulky bez sloupce vote_type nebo screenshot
     try {
       await d1.prepare("ALTER TABLE votes ADD COLUMN vote_type text DEFAULT 'UP'").run();
+    } catch {
+      // Sloupec již existuje, ignorujeme
+    }
+    try {
+      await d1.prepare("ALTER TABLE tickets ADD COLUMN screenshot text").run();
     } catch {
       // Sloupec již existuje, ignorujeme
     }

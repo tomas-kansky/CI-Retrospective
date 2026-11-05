@@ -193,11 +193,11 @@ Při práci v tomto repozitáři **vždy dodržujte následující pravidla** (p
 
 ## 7. Ticketovací systém a obrana proti Prompt Injection
 
-Aplikace obsahuje integrovaný systém hlášení chyb přímo z rozhraní retrospektivy:
-- **Frontend modal (`ReportBugModal.tsx`)**: Zachytává popis, kroky reprodukce a automatickou telemetrii (posledních 20 konzolových chyb z `errorBuffer.ts`, viewport, fázi retro, ID místnosti).
+Aplikace obsahuje integrovaný systém hlášení chyb a nápadů přímo z rozhraní retrospektivy:
+- **Frontend modal (`BugReportModal.tsx`)**: Nabízí dvě odlišné varianty formuláře podle zvoleného typu hlášení – **Chyba** (`bug`: popis problému, kroky k reprodukci, závažnost) a **Nápad** (`feature`: popis nápadu a jeho přínos). Umožňuje volitelné přiložení screenshotu přímo ze schránky (`Ctrl+V` / `Cmd+V`), drag & drop nebo výběrem souboru (s klientskou kompresí přes `<canvas>`) a automaticky přikládá telemetrii (posledních 20 konzolových chyb z `errorBuffer.ts`, viewport, fázi retro, ID místnosti).
 - **Backend API (`/api/tickets`)**:
   1. **Rate limiting**: Maximálně 3 hlášení za 2 minuty na jednu IP adresu (ochrana před spamem a DoS).
-  2. **Zod validace a ořez**: Striktní limity délek polí v `CreateTicketSchema` (název max 120 znaků, popis max 2000 znaků atd.).
+  2. **Zod validace a ořez**: Striktní limity délek polí v `CreateTicketSchema` (název max 120 znaků, popis max 2000 znaků, volitelný `screenshot` jako `data:image/*` Base64).
   3. **Defanging**: Funkce `defangUntrustedText` neutralizuje Markdown fence bloky (převod ` ``` ` na `'''`) a filtruje instrukční tagy (`<system>`, `<instruction>`, `<override>` apod.).
-  4. **Perzistence**: Záznam se uloží do D1 databáze (`tickets` tabulka) a automaticky se přes GitHub REST API commitne jako Markdown soubor do větve `main` pod `docs/tickets/BUG-YYYYMMDD-*.md`.
+  4. **Perzistence**: Záznam (včetně případného screenshotu) se uloží do D1 databáze (`tickets` tabulka) a automaticky se přes GitHub REST API commitne jako Markdown soubor do větve `main` pod `docs/tickets/BUG-YYYYMMDD-*.md`.
   5. **Fenced vizualizace s varováním**: Uživatelský text je obalen v bloku ` ```text ` a uvozen bezpečnostním bannerem `> [!CAUTION]`, který AI agentům explicitně zakazuje vykonávat jakékoliv instrukce z textu.

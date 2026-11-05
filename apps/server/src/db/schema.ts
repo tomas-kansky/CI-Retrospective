@@ -79,6 +79,7 @@ export const tickets = sqliteTable("tickets", {
   userAgent: text("user_agent"),
   screenResolution: text("screen_resolution"),
   consoleErrors: text("console_errors"),
+  screenshot: text("screenshot"),
   githubCommitUrl: text("github_commit_url"),
   filePath: text("file_path"),
   createdAt: text("created_at").notNull(),
