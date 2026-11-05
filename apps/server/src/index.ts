@@ -168,10 +168,10 @@ app.post("/api/action-items", async (c) => {
   );
 });
 
-// Aktualizace stavu akčního kroku (např. Mark as Done -> přesun do Hotovo)
+// Aktualizace stavu akčního kroku (např. Mark as Done -> Hotovo, Cancel -> Zrušeno, Vrátit -> K vyřešení)
 app.patch("/api/action-items/:id", async (c) => {
   const id = c.req.param("id");
-  const body = await c.req.json<{ status: "OPEN" | "IN_PROGRESS" | "DONE" }>();
+  const body = await c.req.json<{ status: "OPEN" | "IN_PROGRESS" | "DONE" | "CANCELLED" }>();
   if (!body.status) {
     return c.json({ error: "Chybí parametr status" }, 400);
   }
@@ -183,6 +183,15 @@ app.patch("/api/action-items/:id", async (c) => {
     .where(eq(actionItems.id, id));
 
   return c.json({ success: true, id, status: body.status });
+});
+
+// Definitivní odstranění akčního kroku (Delete)
+app.delete("/api/action-items/:id", async (c) => {
+  const id = c.req.param("id");
+  const db = createDb(c.env.DB);
+  await db.delete(actionItems).where(eq(actionItems.id, id));
+
+  return c.json({ success: true, id });
 });
 
 

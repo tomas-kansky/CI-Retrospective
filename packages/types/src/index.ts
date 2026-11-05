@@ -71,12 +71,15 @@ export const VoteSchema = z.object({
 });
 export type Vote = z.infer<typeof VoteSchema>;
 
+export const ActionItemStatusSchema = z.enum(["OPEN", "IN_PROGRESS", "DONE", "CANCELLED"]);
+export type ActionItemStatus = z.infer<typeof ActionItemStatusSchema>;
+
 export const ActionItemSchema = z.object({
   id: z.string(),
   retrospectiveId: z.string(),
   text: z.string(),
   assignee: z.string().optional(),
-  status: z.enum(["OPEN", "IN_PROGRESS", "DONE"]).default("OPEN"),
+  status: ActionItemStatusSchema.default("OPEN"),
   dueDate: z.string().optional(),
   createdAt: z.string(),
 });
@@ -200,7 +203,13 @@ export const ClientMessageSchema = z.discriminatedUnion("type", [
     type: z.literal("UPDATE_ACTION_ITEM"),
     payload: z.object({
       id: z.string(),
-      status: z.enum(["OPEN", "IN_PROGRESS", "DONE"]),
+      status: ActionItemStatusSchema,
+    }),
+  }),
+  z.object({
+    type: z.literal("DELETE_ACTION_ITEM"),
+    payload: z.object({
+      id: z.string(),
     }),
   }),
   z.object({

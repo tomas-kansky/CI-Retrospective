@@ -8,8 +8,11 @@ import {
   CheckSquare,
   Plus,
   RotateCcw,
+  ChevronDown,
+  Ban,
+  Trash2,
 } from "lucide-react";
-import type { GlobalActionItem } from "@ci-retro/types";
+import type { ActionItemStatus, GlobalActionItem } from "@ci-retro/types";
 
 interface GlobalActionItemsModalProps {
   isOpen: boolean;
@@ -26,10 +29,11 @@ export const GlobalActionItemsModal: React.FC<GlobalActionItemsModalProps> = ({
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
   // Defaultně zobrazujeme záložku "K vyřešení" ("OPEN")
-  const [filter, setFilter] = useState<"ALL" | "OPEN" | "DONE">("OPEN");
+  const [filter, setFilter] = useState<"ALL" | "OPEN" | "DONE" | "CANCELLED">("OPEN");
   const [searchQuery, setSearchQuery] = useState("");
   const [newText, setNewText] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [openMenuId, setOpenMenuId] = useState<string | null>(null);
 
   const loadItems = async () => {
     setIsLoading(true);
@@ -53,14 +57,16 @@ export const GlobalActionItemsModal: React.FC<GlobalActionItemsModalProps> = ({
   useEffect(() => {
     if (isOpen) {
       setFilter("OPEN");
+      setOpenMenuId(null);
       loadItems();
     }
   }, [isOpen]);
 
   if (!isOpen) return null;
 
-  const handleSetStatus = async (item: GlobalActionItem, newStatus: "OPEN" | "DONE") => {
-    // Optimistická aktualizace v UI (při Mark as Done okamžitě zmizí ze záložky K vyřešení a přesune se do Hotovo)
+  const handleSetStatus = async (item: GlobalActionItem, newStatus: ActionItemStatus) => {
+    setOpenMenuId(null);
+    // Optimistická aktualizace v UI (při Mark as Done do Hotovo, při Cancel do Zrušeno)
     setItems((prev) =>
       prev.map((i) => (i.id === item.id ? { ...i, status: newStatus } : i))
     );
@@ -82,6 +88,26 @@ export const GlobalActionItemsModal: React.FC<GlobalActionItemsModalProps> = ({
       setItems((prev) =>
         prev.map((i) => (i.id === item.id ? { ...i, status: item.status } : i))
       );
+    }
+  };
+
+  const handleDeleteItem = async (item: GlobalActionItem) => {
+    setOpenMenuId(null);
+    const previousItems = items;
+    // Optimistické smazání z UI
+    setItems((prev) => prev.filter((i) => i.id !== item.id));
+
+    try {
+      const res = await fetch(`/api/action-items/${item.id}`, {
+        method: "DELETE",
+      });
+
+      if (!res.ok) {
+        setItems(previousItems);
+      }
+    } catch (err) {
+      console.error("Chyba při odstraňování akčního kroku:", err);
+      setItems(previousItems);
     }
   };
 
@@ -115,11 +141,18 @@ export const GlobalActionItemsModal: React.FC<GlobalActionItemsModalProps> = ({
     }
   };
 
-  // Filtrování a řazení: otevřené úkoly nahoře, hotové dole
+  const getStatusPriority = (status: string) => {
+    if (status === "DONE") return 1;
+    if (status === "CANCELLED") return 2;
+    return 0;
+  };
+
+  // Filtrování a řazení: otevřené úkoly nahoře, hotové a zrušené dole
   const filteredItems = items
     .filter((item) => {
-      if (filter === "OPEN") return item.status !== "DONE";
+      if (filter === "OPEN") return item.status !== "DONE" && item.status !== "CANCELLED";
       if (filter === "DONE") return item.status === "DONE";
+      if (filter === "CANCELLED") return item.status === "CANCELLED";
       return true;
     })
     .filter((item) => {
@@ -131,16 +164,15 @@ export const GlobalActionItemsModal: React.FC<GlobalActionItemsModalProps> = ({
       );
     })
     .sort((a, b) => {
-      const aDone = a.status === "DONE";
-      const bDone = b.status === "DONE";
-      if (aDone !== bDone) {
-        return aDone ? 1 : -1;
-      }
+      const pA = getStatusPriority(a.status);
+      const pB = getStatusPriority(b.status);
+      if (pA !== pB) return pA - pB;
       return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
     });
 
-  const openCount = items.filter((i) => i.status !== "DONE").length;
+  const openCount = items.filter((i) => i.status !== "DONE" && i.status !== "CANCELLED").length;
   const doneCount = items.filter((i) => i.status === "DONE").length;
+  const cancelledCount = items.filter((i) => i.status === "CANCELLED").length;
 
   return (
     <div
@@ -161,7 +193,7 @@ export const GlobalActionItemsModal: React.FC<GlobalActionItemsModalProps> = ({
         className="glass-panel"
         style={{
           width: "100%",
-          maxWidth: "680px",
+          maxWidth: "700px",
           maxHeight: "88vh",
           background: "var(--bg-secondary)",
           borderRadius: "var(--radius-lg)",
@@ -171,7 +203,10 @@ export const GlobalActionItemsModal: React.FC<GlobalActionItemsModalProps> = ({
           boxShadow: "0 20px 40px rgba(0, 0, 0, 0.5)",
           overflow: "hidden",
         }}
-        onClick={(e) => e.stopPropagation()}
+        onClick={(e) => {
+          e.stopPropagation();
+          setOpenMenuId(null);
+        }}
       >
         {/* Header */}
         <div
@@ -237,7 +272,7 @@ export const GlobalActionItemsModal: React.FC<GlobalActionItemsModalProps> = ({
           }}
         >
           {/* Filter tabs */}
-          <div style={{ display: "flex", gap: "6px" }}>
+          <div style={{ display: "flex", gap: "6px", flexWrap: "wrap" }}>
             <button
               onClick={() => setFilter("ALL")}
               style={{
@@ -283,6 +318,24 @@ export const GlobalActionItemsModal: React.FC<GlobalActionItemsModalProps> = ({
             >
               Hotovo ({doneCount})
             </button>
+            <button
+              onClick={() => setFilter("CANCELLED")}
+              style={{
+                padding: "6px 12px",
+                borderRadius: "var(--radius-sm)",
+                background: filter === "CANCELLED" ? "rgba(244, 63, 94, 0.22)" : "transparent",
+                color: filter === "CANCELLED" ? "var(--accent-rose)" : "var(--text-muted)",
+                fontSize: "0.82rem",
+                fontWeight: 600,
+                border:
+                  filter === "CANCELLED"
+                    ? "1px solid rgba(244, 63, 94, 0.45)"
+                    : "1px solid var(--border-color)",
+                cursor: "pointer",
+              }}
+            >
+              Zrušeno ({cancelledCount})
+            </button>
           </div>
 
           {/* Search box */}
@@ -291,7 +344,7 @@ export const GlobalActionItemsModal: React.FC<GlobalActionItemsModalProps> = ({
               position: "relative",
               minWidth: "200px",
               flex: "1 1 auto",
-              maxWidth: "260px",
+              maxWidth: "240px",
             }}
           >
             <Search
@@ -354,12 +407,17 @@ export const GlobalActionItemsModal: React.FC<GlobalActionItemsModalProps> = ({
                   ? "Žádné akční kroky neodpovídají hledání."
                   : filter === "DONE"
                   ? "Zatím nemáte žádné hotové akční kroky."
+                  : filter === "CANCELLED"
+                  ? "Zatím nemáte žádné zrušené akční kroky."
                   : "Všechny akční kroky jsou vyřešeny nebo zatím žádné nebyly přidány!"}
               </p>
             </div>
           ) : (
             filteredItems.map((item) => {
               const isDone = item.status === "DONE";
+              const isCancelled = item.status === "CANCELLED";
+              const isInactive = isDone || isCancelled;
+              const isMenuOpen = openMenuId === item.id;
 
               return (
                 <div
@@ -367,8 +425,8 @@ export const GlobalActionItemsModal: React.FC<GlobalActionItemsModalProps> = ({
                   style={{
                     padding: "14px 16px",
                     borderRadius: "var(--radius-md)",
-                    background: isDone ? "rgba(255, 255, 255, 0.015)" : "var(--bg-card)",
-                    border: isDone
+                    background: isInactive ? "rgba(255, 255, 255, 0.015)" : "var(--bg-card)",
+                    border: isInactive
                       ? "1px solid rgba(255, 255, 255, 0.05)"
                       : "1px solid var(--border-color)",
                     display: "flex",
@@ -376,7 +434,9 @@ export const GlobalActionItemsModal: React.FC<GlobalActionItemsModalProps> = ({
                     justifyContent: "space-between",
                     gap: "14px",
                     transition: "all 0.2s ease",
-                    opacity: isDone ? 0.65 : 1,
+                    opacity: isInactive ? 0.68 : 1,
+                    position: "relative",
+                    zIndex: isMenuOpen ? 30 : 1,
                   }}
                 >
                   {/* Task Content */}
@@ -386,28 +446,28 @@ export const GlobalActionItemsModal: React.FC<GlobalActionItemsModalProps> = ({
                         margin: 0,
                         fontSize: "0.92rem",
                         lineHeight: "1.45",
-                        fontWeight: isDone ? 400 : 500,
-                        textDecoration: isDone ? "line-through" : "none",
-                        color: isDone ? "var(--text-dim)" : "var(--text-main)",
+                        fontWeight: isInactive ? 400 : 500,
+                        textDecoration: isInactive ? "line-through" : "none",
+                        color: isInactive ? "var(--text-dim)" : "var(--text-main)",
                         wordBreak: "break-word",
                       }}
                     >
                       {item.text}
                     </p>
 
-                    {/* Origin Retro Link */}
-                    {item.retrospectiveId && item.retrospectiveId !== "global" && (
-                      <div
-                        style={{
-                          display: "flex",
-                          alignItems: "center",
-                          gap: "8px",
-                          marginTop: "6px",
-                          flexWrap: "wrap",
-                          fontSize: "0.75rem",
-                          color: "var(--text-muted)",
-                        }}
-                      >
+                    <div
+                      style={{
+                        display: "flex",
+                        alignItems: "center",
+                        gap: "8px",
+                        marginTop: "6px",
+                        flexWrap: "wrap",
+                        fontSize: "0.75rem",
+                        color: "var(--text-muted)",
+                      }}
+                    >
+                      {/* Origin Retro Link */}
+                      {item.retrospectiveId && item.retrospectiveId !== "global" && (
                         <button
                           type="button"
                           onClick={() => {
@@ -432,61 +492,210 @@ export const GlobalActionItemsModal: React.FC<GlobalActionItemsModalProps> = ({
                           <span>{item.retrospectiveTitle || "Retrospektiva"}</span>
                           <ExternalLink size={10} />
                         </button>
+                      )}
+
+                      {isCancelled && (
+                        <span
+                          style={{
+                            display: "inline-flex",
+                            alignItems: "center",
+                            gap: "4px",
+                            padding: "2px 8px",
+                            borderRadius: "var(--radius-full)",
+                            background: "rgba(244, 63, 94, 0.12)",
+                            color: "var(--accent-rose)",
+                            border: "1px solid rgba(244, 63, 94, 0.3)",
+                            fontSize: "0.7rem",
+                            fontWeight: 700,
+                          }}
+                        >
+                          Zrušeno
+                        </span>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Mark as Done + šipka dolů (Cancel / Delete) nebo Vrátit + šipka dolů */}
+                  <div
+                    style={{ position: "relative", display: "inline-flex", alignItems: "center", flexShrink: 0 }}
+                    onClick={(e) => e.stopPropagation()}
+                  >
+                    {!isInactive ? (
+                      <div
+                        style={{
+                          display: "inline-flex",
+                          alignItems: "stretch",
+                          borderRadius: "var(--radius-sm)",
+                          border: "1px solid rgba(16, 185, 129, 0.35)",
+                          background: "rgba(16, 185, 129, 0.14)",
+                          overflow: "hidden",
+                        }}
+                      >
+                        <button
+                          type="button"
+                          onClick={() => handleSetStatus(item, "DONE")}
+                          title="Označit akční krok jako hotový a přesunout do Hotovo"
+                          style={{
+                            padding: "6px 12px",
+                            background: "transparent",
+                            color: "var(--accent-emerald)",
+                            border: "none",
+                            fontSize: "0.78rem",
+                            fontWeight: 700,
+                            cursor: "pointer",
+                            display: "inline-flex",
+                            alignItems: "center",
+                            gap: "6px",
+                            whiteSpace: "nowrap",
+                          }}
+                        >
+                          <CheckCircle2 size={14} />
+                          <span>Mark as Done</span>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setOpenMenuId(isMenuOpen ? null : item.id)}
+                          title="Další akce (Cancel / Delete)"
+                          style={{
+                            padding: "6px 8px",
+                            background: isMenuOpen ? "rgba(16, 185, 129, 0.22)" : "transparent",
+                            color: "var(--accent-emerald)",
+                            border: "none",
+                            borderLeft: "1px solid rgba(16, 185, 129, 0.3)",
+                            cursor: "pointer",
+                            display: "inline-flex",
+                            alignItems: "center",
+                            justifyContent: "center",
+                          }}
+                        >
+                          <ChevronDown size={14} />
+                        </button>
+                      </div>
+                    ) : (
+                      <div
+                        style={{
+                          display: "inline-flex",
+                          alignItems: "stretch",
+                          borderRadius: "var(--radius-sm)",
+                          border: "1px solid var(--border-color)",
+                          background: "rgba(255, 255, 255, 0.05)",
+                          overflow: "hidden",
+                        }}
+                      >
+                        <button
+                          type="button"
+                          onClick={() => handleSetStatus(item, "OPEN")}
+                          title="Vrátit zpět mezi K vyřešení"
+                          style={{
+                            padding: "5px 10px",
+                            background: "transparent",
+                            color: "var(--text-muted)",
+                            border: "none",
+                            fontSize: "0.75rem",
+                            fontWeight: 600,
+                            cursor: "pointer",
+                            display: "inline-flex",
+                            alignItems: "center",
+                            gap: "5px",
+                            whiteSpace: "nowrap",
+                          }}
+                        >
+                          <RotateCcw size={12} />
+                          <span>Vrátit</span>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setOpenMenuId(isMenuOpen ? null : item.id)}
+                          title="Další akce (Cancel / Delete)"
+                          style={{
+                            padding: "5px 7px",
+                            background: isMenuOpen ? "rgba(255, 255, 255, 0.1)" : "transparent",
+                            color: "var(--text-muted)",
+                            border: "none",
+                            borderLeft: "1px solid var(--border-color)",
+                            cursor: "pointer",
+                            display: "inline-flex",
+                            alignItems: "center",
+                            justifyContent: "center",
+                          }}
+                        >
+                          <ChevronDown size={13} />
+                        </button>
+                      </div>
+                    )}
+
+                    {/* Dropdown menu pro Cancel a Delete */}
+                    {isMenuOpen && (
+                      <div
+                        style={{
+                          position: "absolute",
+                          top: "calc(100% + 5px)",
+                          right: 0,
+                          minWidth: "170px",
+                          background: "var(--bg-secondary)",
+                          border: "1px solid var(--border-color)",
+                          borderRadius: "var(--radius-sm)",
+                          boxShadow: "0 10px 25px rgba(0, 0, 0, 0.55)",
+                          padding: "4px",
+                          zIndex: 100,
+                          display: "flex",
+                          flexDirection: "column",
+                          gap: "2px",
+                        }}
+                      >
+                        {!isCancelled && (
+                          <button
+                            type="button"
+                            onClick={() => handleSetStatus(item, "CANCELLED")}
+                            style={{
+                              width: "100%",
+                              padding: "7px 10px",
+                              borderRadius: "4px",
+                              background: "transparent",
+                              color: "var(--text-main)",
+                              border: "none",
+                              fontSize: "0.8rem",
+                              fontWeight: 600,
+                              cursor: "pointer",
+                              display: "flex",
+                              alignItems: "center",
+                              gap: "8px",
+                              textAlign: "left",
+                            }}
+                            onMouseEnter={(e) => (e.currentTarget.style.background = "rgba(255, 255, 255, 0.06)")}
+                            onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}
+                          >
+                            <Ban size={14} color="var(--accent-amber, #f59e0b)" />
+                            <span>Cancel (Zrušit)</span>
+                          </button>
+                        )}
+                        <button
+                          type="button"
+                          onClick={() => handleDeleteItem(item)}
+                          style={{
+                            width: "100%",
+                            padding: "7px 10px",
+                            borderRadius: "4px",
+                            background: "transparent",
+                            color: "var(--accent-rose)",
+                            border: "none",
+                            fontSize: "0.8rem",
+                            fontWeight: 600,
+                            cursor: "pointer",
+                            display: "flex",
+                            alignItems: "center",
+                            gap: "8px",
+                            textAlign: "left",
+                          }}
+                          onMouseEnter={(e) => (e.currentTarget.style.background = "rgba(244, 63, 94, 0.12)")}
+                          onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}
+                        >
+                          <Trash2 size={14} color="var(--accent-rose)" />
+                          <span>Delete (Odstranit)</span>
+                        </button>
                       </div>
                     )}
                   </div>
-
-                  {/* Mark as Done / Reopen Button */}
-                  {!isDone ? (
-                    <button
-                      type="button"
-                      onClick={() => handleSetStatus(item, "DONE")}
-                      title="Označit akční krok jako hotový a přesunout do Hotovo"
-                      style={{
-                        padding: "6px 12px",
-                        borderRadius: "var(--radius-sm)",
-                        background: "rgba(16, 185, 129, 0.14)",
-                        color: "var(--accent-emerald)",
-                        border: "1px solid rgba(16, 185, 129, 0.35)",
-                        fontSize: "0.78rem",
-                        fontWeight: 700,
-                        cursor: "pointer",
-                        display: "inline-flex",
-                        alignItems: "center",
-                        gap: "6px",
-                        whiteSpace: "nowrap",
-                        flexShrink: 0,
-                        transition: "background 0.15s ease",
-                      }}
-                    >
-                      <CheckCircle2 size={14} />
-                      <span>Mark as Done</span>
-                    </button>
-                  ) : (
-                    <button
-                      type="button"
-                      onClick={() => handleSetStatus(item, "OPEN")}
-                      title="Vrátit zpět mezi K vyřešení"
-                      style={{
-                        padding: "5px 10px",
-                        borderRadius: "var(--radius-sm)",
-                        background: "rgba(255, 255, 255, 0.05)",
-                        color: "var(--text-muted)",
-                        border: "1px solid var(--border-color)",
-                        fontSize: "0.75rem",
-                        fontWeight: 600,
-                        cursor: "pointer",
-                        display: "inline-flex",
-                        alignItems: "center",
-                        gap: "5px",
-                        whiteSpace: "nowrap",
-                        flexShrink: 0,
-                      }}
-                    >
-                      <RotateCcw size={12} />
-                      <span>Vrátit</span>
-                    </button>
-                  )}
                 </div>
               );
             })

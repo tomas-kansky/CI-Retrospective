@@ -174,7 +174,9 @@ export const App: React.FC = () => {
       const res = await fetch("/api/action-items");
       if (res.ok) {
         const data = await res.json();
-        const open = (data.actionItems || []).filter((a: any) => a.status !== "DONE").length;
+        const open = (data.actionItems || []).filter(
+          (a: any) => a.status !== "DONE" && a.status !== "CANCELLED"
+        ).length;
         setOpenActionItemsCount(open);
       }
     } catch {}

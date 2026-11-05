@@ -541,7 +541,7 @@ export function useRetroRoom({ roomId, user }: UseRetroRoomOptions) {
   );
 
   const updateActionItem = useCallback(
-    (id: string, status: "OPEN" | "IN_PROGRESS" | "DONE") => {
+    (id: string, status: "OPEN" | "IN_PROGRESS" | "DONE" | "CANCELLED") => {
       sendMessage({
         type: "UPDATE_ACTION_ITEM",
         payload: { id, status },

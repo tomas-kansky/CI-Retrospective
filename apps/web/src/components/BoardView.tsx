@@ -633,7 +633,9 @@ export const BoardView: React.FC<BoardViewProps> = ({ roomId, user, onBack, onUp
         const listRes = await fetch("/api/action-items");
         if (listRes.ok) {
           const listData = await listRes.json();
-          const open = (listData.actionItems || []).filter((i: any) => i.status !== "DONE").length;
+          const open = (listData.actionItems || []).filter(
+            (i: any) => i.status !== "DONE" && i.status !== "CANCELLED"
+          ).length;
           setGlobalOpenActionItemsCount(open);
         } else if (copiedCount > 0) {
           setGlobalOpenActionItemsCount((prev) => prev + copiedCount);

@@ -2,7 +2,7 @@
 id: "BUG-20261105-346"
 title: "V Akční Kroky mít možnost akční krok odstranit a nebo zrušit"
 type: "feature"
-status: "open"
+status: "resolved"
 priority: "medium"
 createdAt: "2026-11-05T12:16:24.813Z"
 author:
@@ -44,6 +44,9 @@ Vedle tlačítka Mark as Done by byla šipka dolů, kde by byli možnosti Cancel
 
 ## 🛠️ Návrh řešení & Historie oprav
 *(Tuto sekci doplňuje řešitel při opravě)*
-- **Příčina**: 
-- **Změny**: 
-- **Commit**: 
+- **Příčina**: V panelu a modalu Akčních kroků (`ActionItemsDrawer.tsx` a `GlobalActionItemsModal.tsx`) bylo možné akční krok pouze označit jako hotový (`Mark as Done`) nebo vrátit zpět, ale chyběla možnost akční krok zrušit (`Cancel` -> přesun do záložky `Zrušeno`) nebo definitivně smazat (`Delete`).
+- **Změny**:
+  - Do `ActionItemStatusSchema` v `packages/types/src/index.ts` přidán stav `"CANCELLED"` a zpráva `DELETE_ACTION_ITEM`.
+  - V `apps/server/src/index.ts` rozšířen endpoint `PATCH /api/action-items/:id` o stav `"CANCELLED"` a přidán endpoint `DELETE /api/action-items/:id` pro trvalé odstranění akčního kroku z D1 databáze.
+  - V `ActionItemsDrawer.tsx` a `GlobalActionItemsModal.tsx` přidána nová záložka **Zrušeno** (vedle **Hotovo**) a vedle tlačítka `Mark as Done` (i `Vrátit`) doplněna rozbalovací šipka dolů s možnostmi **Cancel (Zrušit)** (přesun do záložky Zrušeno) a **Delete (Odstranit)** (definitivní smazání).
+- **Commit**: `feat: resolve BUG-20261105-346 add cancel and delete options to action items`

@@ -8,8 +8,11 @@ import {
   Layers,
   RotateCcw,
   Download,
+  ChevronDown,
+  Ban,
+  Trash2,
 } from "lucide-react";
-import type { ActionItem, GlobalActionItem } from "@ci-retro/types";
+import type { ActionItem, ActionItemStatus, GlobalActionItem } from "@ci-retro/types";
 
 interface ActionItemsDrawerProps {
   roomId: string;
@@ -19,7 +22,7 @@ interface ActionItemsDrawerProps {
   isOpen: boolean;
   onClose: () => void;
   onAdd?: (text: string) => void;
-  onToggleStatus?: (id: string, newStatus: "OPEN" | "DONE") => void;
+  onToggleStatus?: (id: string, newStatus: ActionItemStatus) => void;
   onGlobalOpenCountChange?: (count: number) => void;
 }
 
@@ -35,11 +38,15 @@ export const ActionItemsDrawer: React.FC<ActionItemsDrawerProps> = ({
   const [items, setItems] = useState<GlobalActionItem[]>([]);
   const [isLoading, setIsLoading] = useState<boolean>(false);
   // Defaultně se zobrazuje "K vyřešení" ("OPEN")
-  const [filter, setFilter] = useState<"ALL" | "OPEN" | "DONE">("OPEN");
+  const [filter, setFilter] = useState<"ALL" | "OPEN" | "DONE" | "CANCELLED">("OPEN");
   const [searchQuery, setSearchQuery] = useState("");
   const [newText, setNewText] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isImporting, setIsImporting] = useState(false);
+  const [openMenuId, setOpenMenuId] = useState<string | null>(null);
+
+  const countOpen = (list: GlobalActionItem[]) =>
+    list.filter((i) => i.status !== "DONE" && i.status !== "CANCELLED").length;
 
   const loadGlobalItems = useCallback(async () => {
     setIsLoading(true);
@@ -50,7 +57,7 @@ export const ActionItemsDrawer: React.FC<ActionItemsDrawerProps> = ({
         const loaded: GlobalActionItem[] = data.actionItems || [];
         setItems(loaded);
         if (onGlobalOpenCountChange) {
-          onGlobalOpenCountChange(loaded.filter((i) => i.status !== "DONE").length);
+          onGlobalOpenCountChange(countOpen(loaded));
         }
       }
     } catch (err) {
@@ -68,18 +75,20 @@ export const ActionItemsDrawer: React.FC<ActionItemsDrawerProps> = ({
   useEffect(() => {
     if (isOpen) {
       setFilter("OPEN");
+      setOpenMenuId(null);
       loadGlobalItems();
     }
   }, [isOpen, loadGlobalItems, actionItems.length]);
 
   if (!isOpen) return null;
 
-  const handleSetStatus = async (item: GlobalActionItem, newStatus: "OPEN" | "DONE") => {
-    // Optimistický přesun (při Mark as Done se okamžitě přesune z K vyřešení do Hotovo)
+  const handleSetStatus = async (item: GlobalActionItem, newStatus: ActionItemStatus) => {
+    setOpenMenuId(null);
+    // Optimistický přesun (při Mark as Done do Hotovo, při Cancel do Zrušeno)
     setItems((prev) => {
       const next = prev.map((i) => (i.id === item.id ? { ...i, status: newStatus } : i));
       if (onGlobalOpenCountChange) {
-        onGlobalOpenCountChange(next.filter((i) => i.status !== "DONE").length);
+        onGlobalOpenCountChange(countOpen(next));
       }
       return next;
     });
@@ -96,6 +105,31 @@ export const ActionItemsDrawer: React.FC<ActionItemsDrawerProps> = ({
       }
     } catch (err) {
       console.error("Chyba při změně stavu akčního kroku:", err);
+      await loadGlobalItems();
+    }
+  };
+
+  const handleDeleteItem = async (item: GlobalActionItem) => {
+    setOpenMenuId(null);
+    // Optimistické odstranění z UI
+    setItems((prev) => {
+      const next = prev.filter((i) => i.id !== item.id);
+      if (onGlobalOpenCountChange) {
+        onGlobalOpenCountChange(countOpen(next));
+      }
+      return next;
+    });
+
+    try {
+      const res = await fetch(`/api/action-items/${item.id}`, {
+        method: "DELETE",
+      });
+
+      if (!res.ok) {
+        await loadGlobalItems();
+      }
+    } catch (err) {
+      console.error("Chyba při odstraňování akčního kroku:", err);
       await loadGlobalItems();
     }
   };
@@ -124,7 +158,7 @@ export const ActionItemsDrawer: React.FC<ActionItemsDrawerProps> = ({
           setItems((prev) => {
             const next = [...data.actionItems, ...prev];
             if (onGlobalOpenCountChange) {
-              onGlobalOpenCountChange(next.filter((i) => i.status !== "DONE").length);
+              onGlobalOpenCountChange(countOpen(next));
             }
             return next;
           });
@@ -169,10 +203,17 @@ export const ActionItemsDrawer: React.FC<ActionItemsDrawerProps> = ({
     }
   };
 
+  const getStatusPriority = (status: string) => {
+    if (status === "DONE") return 1;
+    if (status === "CANCELLED") return 2;
+    return 0;
+  };
+
   const filteredItems = items
     .filter((item) => {
-      if (filter === "OPEN") return item.status !== "DONE";
+      if (filter === "OPEN") return item.status !== "DONE" && item.status !== "CANCELLED";
       if (filter === "DONE") return item.status === "DONE";
+      if (filter === "CANCELLED") return item.status === "CANCELLED";
       return true;
     })
     .filter((item) => {
@@ -184,16 +225,15 @@ export const ActionItemsDrawer: React.FC<ActionItemsDrawerProps> = ({
       );
     })
     .sort((a, b) => {
-      const aDone = a.status === "DONE";
-      const bDone = b.status === "DONE";
-      if (aDone !== bDone) {
-        return aDone ? 1 : -1;
-      }
+      const pA = getStatusPriority(a.status);
+      const pB = getStatusPriority(b.status);
+      if (pA !== pB) return pA - pB;
       return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
     });
 
-  const openCount = items.filter((i) => i.status !== "DONE").length;
+  const openCount = countOpen(items);
   const doneCount = items.filter((i) => i.status === "DONE").length;
+  const cancelledCount = items.filter((i) => i.status === "CANCELLED").length;
 
   return (
     <div
@@ -212,7 +252,7 @@ export const ActionItemsDrawer: React.FC<ActionItemsDrawerProps> = ({
         className="glass-panel"
         style={{
           width: "100%",
-          maxWidth: "520px",
+          maxWidth: "560px",
           height: "100%",
           background: "var(--bg-secondary)",
           borderLeft: "1px solid var(--border-color)",
@@ -220,7 +260,10 @@ export const ActionItemsDrawer: React.FC<ActionItemsDrawerProps> = ({
           flexDirection: "column",
           boxShadow: "var(--shadow-md)",
         }}
-        onClick={(e) => e.stopPropagation()}
+        onClick={(e) => {
+          e.stopPropagation();
+          setOpenMenuId(null);
+        }}
       >
         {/* Header */}
         <div
@@ -251,7 +294,7 @@ export const ActionItemsDrawer: React.FC<ActionItemsDrawerProps> = ({
           </button>
         </div>
 
-        {/* Filter Tabs (Vše / K vyřešení / Hotovo) & Search */}
+        {/* Filter Tabs (Vše / K vyřešení / Hotovo / Zrušeno) & Search */}
         <div
           style={{
             padding: "12px 24px",
@@ -263,7 +306,7 @@ export const ActionItemsDrawer: React.FC<ActionItemsDrawerProps> = ({
           }}
         >
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: "8px", flexWrap: "wrap" }}>
-            <div style={{ display: "flex", gap: "6px" }}>
+            <div style={{ display: "flex", gap: "6px", flexWrap: "wrap" }}>
               <button
                 type="button"
                 onClick={() => setFilter("ALL")}
@@ -311,6 +354,25 @@ export const ActionItemsDrawer: React.FC<ActionItemsDrawerProps> = ({
                 }}
               >
                 Hotovo ({doneCount})
+              </button>
+              <button
+                type="button"
+                onClick={() => setFilter("CANCELLED")}
+                style={{
+                  padding: "5px 10px",
+                  borderRadius: "var(--radius-sm)",
+                  background: filter === "CANCELLED" ? "rgba(244, 63, 94, 0.22)" : "transparent",
+                  color: filter === "CANCELLED" ? "var(--accent-rose)" : "var(--text-muted)",
+                  fontSize: "0.78rem",
+                  fontWeight: 600,
+                  border:
+                    filter === "CANCELLED"
+                      ? "1px solid rgba(244, 63, 94, 0.45)"
+                      : "1px solid var(--border-color)",
+                  cursor: "pointer",
+                }}
+              >
+                Zrušeno ({cancelledCount})
               </button>
             </div>
 
@@ -387,11 +449,16 @@ export const ActionItemsDrawer: React.FC<ActionItemsDrawerProps> = ({
                 ? "Žádné akční kroky neodpovídají hledání."
                 : filter === "DONE"
                 ? "Zatím nejsou žádné hotové akční kroky."
+                : filter === "CANCELLED"
+                ? "Zatím nejsou žádné zrušené akční kroky."
                 : "Žádné otevřené akční kroky k vyřešení."}
             </div>
           ) : (
             filteredItems.map((item) => {
               const isDone = item.status === "DONE";
+              const isCancelled = item.status === "CANCELLED";
+              const isInactive = isDone || isCancelled;
+              const isMenuOpen = openMenuId === item.id;
 
               return (
                 <div
@@ -399,15 +466,17 @@ export const ActionItemsDrawer: React.FC<ActionItemsDrawerProps> = ({
                   style={{
                     padding: "12px 14px",
                     borderRadius: "var(--radius-sm)",
-                    background: isDone ? "rgba(255, 255, 255, 0.015)" : "var(--bg-card)",
-                    border: isDone
+                    background: isInactive ? "rgba(255, 255, 255, 0.015)" : "var(--bg-card)",
+                    border: isInactive
                       ? "1px solid rgba(255, 255, 255, 0.05)"
                       : "1px solid var(--border-color)",
                     display: "flex",
                     alignItems: "center",
                     justifyContent: "space-between",
                     gap: "12px",
-                    opacity: isDone ? 0.65 : 1,
+                    opacity: isInactive ? 0.68 : 1,
+                    position: "relative",
+                    zIndex: isMenuOpen ? 30 : 1,
                   }}
                 >
                   <div style={{ flex: 1, minWidth: 0 }}>
@@ -416,17 +485,17 @@ export const ActionItemsDrawer: React.FC<ActionItemsDrawerProps> = ({
                         margin: 0,
                         fontSize: "0.88rem",
                         lineHeight: "1.45",
-                        fontWeight: isDone ? 400 : 500,
-                        textDecoration: isDone ? "line-through" : "none",
-                        color: isDone ? "var(--text-dim)" : "var(--text-main)",
+                        fontWeight: isInactive ? 400 : 500,
+                        textDecoration: isInactive ? "line-through" : "none",
+                        color: isInactive ? "var(--text-dim)" : "var(--text-main)",
                         wordBreak: "break-word",
                       }}
                     >
                       {item.text}
                     </p>
 
-                    {item.retrospectiveId && item.retrospectiveId !== "global" && (
-                      <div style={{ display: "flex", alignItems: "center", gap: "6px", marginTop: "6px" }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: "6px", marginTop: "6px", flexWrap: "wrap" }}>
+                      {item.retrospectiveId && item.retrospectiveId !== "global" && (
                         <span
                           style={{
                             display: "inline-flex",
@@ -444,60 +513,210 @@ export const ActionItemsDrawer: React.FC<ActionItemsDrawerProps> = ({
                           <Layers size={10} />
                           <span>{item.retrospectiveTitle || "Retrospektiva"}</span>
                         </span>
+                      )}
+
+                      {isCancelled && (
+                        <span
+                          style={{
+                            display: "inline-flex",
+                            alignItems: "center",
+                            gap: "4px",
+                            padding: "1px 7px",
+                            borderRadius: "var(--radius-full)",
+                            background: "rgba(244, 63, 94, 0.12)",
+                            color: "var(--accent-rose)",
+                            border: "1px solid rgba(244, 63, 94, 0.3)",
+                            fontSize: "0.68rem",
+                            fontWeight: 700,
+                          }}
+                        >
+                          Zrušeno
+                        </span>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Akce: Mark as Done + šipka dolů (Cancel / Delete) nebo Vrátit + šipka dolů */}
+                  <div
+                    style={{ position: "relative", display: "inline-flex", alignItems: "center", flexShrink: 0 }}
+                    onClick={(e) => e.stopPropagation()}
+                  >
+                    {!isInactive ? (
+                      <div
+                        style={{
+                          display: "inline-flex",
+                          alignItems: "stretch",
+                          borderRadius: "var(--radius-sm)",
+                          border: "1px solid rgba(16, 185, 129, 0.35)",
+                          background: "rgba(16, 185, 129, 0.14)",
+                          overflow: "hidden",
+                        }}
+                      >
+                        <button
+                          type="button"
+                          onClick={() => handleSetStatus(item, "DONE")}
+                          title="Označit jako hotové a přesunout do Hotovo"
+                          style={{
+                            padding: "5px 10px",
+                            background: "transparent",
+                            color: "var(--accent-emerald)",
+                            border: "none",
+                            fontSize: "0.75rem",
+                            fontWeight: 700,
+                            cursor: "pointer",
+                            display: "inline-flex",
+                            alignItems: "center",
+                            gap: "5px",
+                            whiteSpace: "nowrap",
+                          }}
+                        >
+                          <CheckCircle2 size={13} />
+                          <span>Mark as Done</span>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setOpenMenuId(isMenuOpen ? null : item.id)}
+                          title="Další akce (Cancel / Delete)"
+                          style={{
+                            padding: "5px 7px",
+                            background: isMenuOpen ? "rgba(16, 185, 129, 0.22)" : "transparent",
+                            color: "var(--accent-emerald)",
+                            border: "none",
+                            borderLeft: "1px solid rgba(16, 185, 129, 0.3)",
+                            cursor: "pointer",
+                            display: "inline-flex",
+                            alignItems: "center",
+                            justifyContent: "center",
+                          }}
+                        >
+                          <ChevronDown size={13} />
+                        </button>
+                      </div>
+                    ) : (
+                      <div
+                        style={{
+                          display: "inline-flex",
+                          alignItems: "stretch",
+                          borderRadius: "var(--radius-sm)",
+                          border: "1px solid var(--border-color)",
+                          background: "rgba(255, 255, 255, 0.05)",
+                          overflow: "hidden",
+                        }}
+                      >
+                        <button
+                          type="button"
+                          onClick={() => handleSetStatus(item, "OPEN")}
+                          title="Vrátit zpět mezi K vyřešení"
+                          style={{
+                            padding: "4px 8px",
+                            background: "transparent",
+                            color: "var(--text-muted)",
+                            border: "none",
+                            fontSize: "0.72rem",
+                            fontWeight: 600,
+                            cursor: "pointer",
+                            display: "inline-flex",
+                            alignItems: "center",
+                            gap: "4px",
+                            whiteSpace: "nowrap",
+                          }}
+                        >
+                          <RotateCcw size={11} />
+                          <span>Vrátit</span>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setOpenMenuId(isMenuOpen ? null : item.id)}
+                          title="Další akce (Cancel / Delete)"
+                          style={{
+                            padding: "4px 6px",
+                            background: isMenuOpen ? "rgba(255, 255, 255, 0.1)" : "transparent",
+                            color: "var(--text-muted)",
+                            border: "none",
+                            borderLeft: "1px solid var(--border-color)",
+                            cursor: "pointer",
+                            display: "inline-flex",
+                            alignItems: "center",
+                            justifyContent: "center",
+                          }}
+                        >
+                          <ChevronDown size={12} />
+                        </button>
+                      </div>
+                    )}
+
+                    {/* Dropdown menu pro Cancel a Delete */}
+                    {isMenuOpen && (
+                      <div
+                        style={{
+                          position: "absolute",
+                          top: "calc(100% + 5px)",
+                          right: 0,
+                          minWidth: "165px",
+                          background: "var(--bg-secondary)",
+                          border: "1px solid var(--border-color)",
+                          borderRadius: "var(--radius-sm)",
+                          boxShadow: "0 10px 25px rgba(0, 0, 0, 0.55)",
+                          padding: "4px",
+                          zIndex: 100,
+                          display: "flex",
+                          flexDirection: "column",
+                          gap: "2px",
+                        }}
+                      >
+                        {!isCancelled && (
+                          <button
+                            type="button"
+                            onClick={() => handleSetStatus(item, "CANCELLED")}
+                            style={{
+                              width: "100%",
+                              padding: "7px 10px",
+                              borderRadius: "4px",
+                              background: "transparent",
+                              color: "var(--text-main)",
+                              border: "none",
+                              fontSize: "0.78rem",
+                              fontWeight: 600,
+                              cursor: "pointer",
+                              display: "flex",
+                              alignItems: "center",
+                              gap: "8px",
+                              textAlign: "left",
+                            }}
+                            onMouseEnter={(e) => (e.currentTarget.style.background = "rgba(255, 255, 255, 0.06)")}
+                            onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}
+                          >
+                            <Ban size={13} color="var(--accent-amber, #f59e0b)" />
+                            <span>Cancel (Zrušit)</span>
+                          </button>
+                        )}
+                        <button
+                          type="button"
+                          onClick={() => handleDeleteItem(item)}
+                          style={{
+                            width: "100%",
+                            padding: "7px 10px",
+                            borderRadius: "4px",
+                            background: "transparent",
+                            color: "var(--accent-rose)",
+                            border: "none",
+                            fontSize: "0.78rem",
+                            fontWeight: 600,
+                            cursor: "pointer",
+                            display: "flex",
+                            alignItems: "center",
+                            gap: "8px",
+                            textAlign: "left",
+                          }}
+                          onMouseEnter={(e) => (e.currentTarget.style.background = "rgba(244, 63, 94, 0.12)")}
+                          onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}
+                        >
+                          <Trash2 size={13} color="var(--accent-rose)" />
+                          <span>Delete (Odstranit)</span>
+                        </button>
                       </div>
                     )}
                   </div>
-
-                  {/* Mark as Done / Vrátit */}
-                  {!isDone ? (
-                    <button
-                      type="button"
-                      onClick={() => handleSetStatus(item, "DONE")}
-                      title="Označit jako hotové a přesunout do Hotovo"
-                      style={{
-                        padding: "5px 10px",
-                        borderRadius: "var(--radius-sm)",
-                        background: "rgba(16, 185, 129, 0.14)",
-                        color: "var(--accent-emerald)",
-                        border: "1px solid rgba(16, 185, 129, 0.35)",
-                        fontSize: "0.75rem",
-                        fontWeight: 700,
-                        cursor: "pointer",
-                        display: "inline-flex",
-                        alignItems: "center",
-                        gap: "5px",
-                        whiteSpace: "nowrap",
-                        flexShrink: 0,
-                      }}
-                    >
-                      <CheckCircle2 size={13} />
-                      <span>Mark as Done</span>
-                    </button>
-                  ) : (
-                    <button
-                      type="button"
-                      onClick={() => handleSetStatus(item, "OPEN")}
-                      title="Vrátit zpět mezi K vyřešení"
-                      style={{
-                        padding: "4px 8px",
-                        borderRadius: "var(--radius-sm)",
-                        background: "rgba(255, 255, 255, 0.05)",
-                        color: "var(--text-muted)",
-                        border: "1px solid var(--border-color)",
-                        fontSize: "0.72rem",
-                        fontWeight: 600,
-                        cursor: "pointer",
-                        display: "inline-flex",
-                        alignItems: "center",
-                        gap: "4px",
-                        whiteSpace: "nowrap",
-                        flexShrink: 0,
-                      }}
-                    >
-                      <RotateCcw size={11} />
-                      <span>Vrátit</span>
-                    </button>
-                  )}
                 </div>
               );
             })

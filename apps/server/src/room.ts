@@ -555,6 +555,15 @@ export class RetroRoom extends DurableObject<Env> {
           break;
         }
 
+        case "DELETE_ACTION_ITEM": {
+          const beforeLen = this.state.actionItems.length;
+          this.state.actionItems = this.state.actionItems.filter((a) => a.id !== clientMsg.payload.id);
+          if (this.state.actionItems.length !== beforeLen) {
+            this.broadcastState();
+          }
+          break;
+        }
+
         case "TYPING_STATUS": {
           const newColumnId = clientMsg.payload.isTyping
             ? clientMsg.payload.columnId
@@ -928,58 +937,8 @@ export class RetroRoom extends DurableObject<Env> {
         }
       }
 
-      // 3. Synchronizace úkolů (Action items)
-      const dbActionItems = await db
-        .select()
-        .from(actionItems)
-        .where(eq(actionItems.retrospectiveId, this.state.id));
-      const dbActionItemsMap = new Map(dbActionItems.map((a) => [a.id, a]));
-      const currentActionItemIds = new Set(this.state.actionItems.map((a) => a.id));
-
-      // Smazat odebrané akční úkoly
-      const actionItemsToDelete = dbActionItems.filter((a) => !currentActionItemIds.has(a.id));
-      for (const item of actionItemsToDelete) {
-        try {
-          await db.delete(actionItems).where(eq(actionItems.id, item.id));
-        } catch (e) {
-          console.error(`Chyba při mazání akčního úkolu ${item.id} z D1:`, e);
-        }
-      }
-
-      // Vložit / aktualizovat pouze nové nebo změněné úkoly
-      for (const item of this.state.actionItems) {
-        const existing = dbActionItemsMap.get(item.id);
-        if (
-          existing &&
-          existing.text === item.text &&
-          (existing.assignee ?? null) === (item.assignee ?? null) &&
-          existing.status === item.status &&
-          (existing.dueDate ?? null) === (item.dueDate ?? null)
-        ) {
-          continue;
-        }
-
-        await db
-          .insert(actionItems)
-          .values({
-            id: item.id,
-            retrospectiveId: item.retrospectiveId,
-            text: item.text,
-            assignee: item.assignee,
-            status: item.status,
-            dueDate: item.dueDate,
-            createdAt: item.createdAt,
-          })
-          .onConflictDoUpdate({
-            target: actionItems.id,
-            set: {
-              text: item.text,
-              assignee: item.assignee,
-              status: item.status,
-              dueDate: item.dueDate,
-            },
-          });
-      }
+      // Poznámka: Globální Akční kroky (action_items) jsou spravovány přímo přes REST API (/api/action-items),
+      // proto je v DO flushToD1 nepřepisujeme ani nemažeme, aby nedošlo ke ztrátě položek přidaných/upravených přes REST.
     } catch (err) {
       console.error("Chyba při ukládání snapshotu do D1:", err);
     } finally {
