@@ -15,12 +15,63 @@ interface RetroItem {
   createdAt: string;
 }
 
-// Vytvoření dočasného (in-memory) uživatelského profilu pouze po dobu aktivního připojení v aplikaci.
-// Jakmile se uživatel odpojí / zavře či obnoví stránku, jeho jméno se odstraní a příště dostane nové.
-function createEphemeralUserSession(): UserSession {
+const USER_STORAGE_KEY = "ci_retro_user";
+
+function getTodayDateKey(): string {
+  const now = new Date();
+  const y = now.getFullYear();
+  const m = String(now.getMonth() + 1).padStart(2, "0");
+  const d = String(now.getDate()).padStart(2, "0");
+  return `${y}-${m}-${d}`;
+}
+
+function getEndOfDayTimestamp(): number {
+  const end = new Date();
+  end.setHours(23, 59, 59, 999);
+  return end.getTime();
+}
+
+function saveDailyUserSession(session: UserSession): void {
   try {
-    localStorage.removeItem("ci_retro_user");
-    sessionStorage.removeItem("ci_retro_user");
+    const payload = {
+      ...session,
+      dateKey: getTodayDateKey(),
+      expiresAt: getEndOfDayTimestamp(),
+    };
+    localStorage.setItem(USER_STORAGE_KEY, JSON.stringify(payload));
+  } catch {}
+}
+
+// Načtení nebo vytvoření denního profilu (platného do konce aktuálního kalendářního dne 23:59:59).
+// Při refreshi stránky (F5) během dne zůstane zachováno ID, hlasy, autorství karet i jméno;
+// další den nebo další týden se starý profil automaticky zneplatní a vygeneruje se nový.
+function getOrCreateDailyUserSession(): UserSession {
+  const todayKey = getTodayDateKey();
+  const now = Date.now();
+
+  try {
+    const saved = localStorage.getItem(USER_STORAGE_KEY);
+    if (saved) {
+      const parsed = JSON.parse(saved);
+      if (
+        parsed &&
+        typeof parsed === "object" &&
+        typeof parsed.id === "string" &&
+        typeof parsed.name === "string" &&
+        parsed.dateKey === todayKey &&
+        typeof parsed.expiresAt === "number" &&
+        parsed.expiresAt > now
+      ) {
+        const session: UserSession = {
+          id: parsed.id,
+          name: parsed.name,
+          avatarColor: parsed.avatarColor || "#6366f1",
+          isAnonymous: Boolean(parsed.isAnonymous),
+          isFacilitator: parsed.isFacilitator !== false,
+        };
+        return session;
+      }
+    }
   } catch {}
 
   const colors = [
@@ -37,18 +88,21 @@ function createEphemeralUserSession(): UserSession {
   ];
   const randomColor = colors[Math.floor(Math.random() * colors.length)];
 
-  return {
+  const newSession: UserSession = {
     id: crypto.randomUUID(),
     name: getRandomAnonymousName(),
     avatarColor: randomColor,
     isAnonymous: false,
     isFacilitator: true,
   };
+
+  saveDailyUserSession(newSession);
+  return newSession;
 }
 
 export const App: React.FC = () => {
   const [theme, setTheme] = useState<"dark" | "light">("dark");
-  const [currentUser, setCurrentUser] = useState<UserSession>(createEphemeralUserSession);
+  const [currentUser, setCurrentUser] = useState<UserSession>(getOrCreateDailyUserSession);
   const [currentRoomId, setCurrentRoomId] = useState<string | null>(null);
 
   const [retros, setRetros] = useState<RetroItem[]>([]);
@@ -85,37 +139,18 @@ export const App: React.FC = () => {
     document.documentElement.setAttribute("data-theme", theme);
   }, [theme]);
 
-  // Pokud byla záložka na pozadí neaktivní déle než 15 minut (nebo se uživatel vrátil další týden),
-  // vygenerujeme novou dočasnou relaci s novým náhodným jménem
+  // Při návratu na záložku zkontrolujeme, zda už nenastal nový kalendářní den (expirace na konci dne)
   useEffect(() => {
-    let hiddenAt: number | null = null;
-    const SESSION_EXPIRY_MS = 15 * 60 * 1000;
-
     const handleVisibility = () => {
-      if (document.visibilityState === "hidden") {
-        hiddenAt = Date.now();
-      } else if (document.visibilityState === "visible") {
-        if (hiddenAt && Date.now() - hiddenAt > SESSION_EXPIRY_MS) {
-          setCurrentUser(createEphemeralUserSession());
-        }
-        hiddenAt = null;
+      if (document.visibilityState === "visible") {
+        const refreshed = getOrCreateDailyUserSession();
+        setCurrentUser((prev) => (prev.id !== refreshed.id ? refreshed : prev));
       }
     };
 
-    const handleUnload = () => {
-      try {
-        localStorage.removeItem("ci_retro_user");
-        sessionStorage.removeItem("ci_retro_user");
-      } catch {}
-    };
-
     document.addEventListener("visibilitychange", handleVisibility);
-    window.addEventListener("pagehide", handleUnload);
-    window.addEventListener("beforeunload", handleUnload);
     return () => {
       document.removeEventListener("visibilitychange", handleVisibility);
-      window.removeEventListener("pagehide", handleUnload);
-      window.removeEventListener("beforeunload", handleUnload);
     };
   }, []);
 
@@ -191,8 +226,6 @@ export const App: React.FC = () => {
 
   const handleBackToDashboard = () => {
     window.location.hash = "";
-    // Při odpojení z místnosti resetujeme dočasné jméno na nové náhodné zvíře
-    setCurrentUser(createEphemeralUserSession());
     loadRetrospectives();
     loadActionItemsCount();
   };
@@ -266,6 +299,7 @@ export const App: React.FC = () => {
           onBack={handleBackToDashboard}
           onUpdateUser={(updated) => {
             setCurrentUser(updated);
+            saveDailyUserSession(updated);
           }}
         />
       </div>

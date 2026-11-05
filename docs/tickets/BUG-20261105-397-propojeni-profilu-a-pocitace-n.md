@@ -2,7 +2,7 @@
 id: "BUG-20261105-397"
 title: "Propojení profilu a počítače na delší dobu"
 type: "bug"
-status: "open"
+status: "resolved"
 priority: "medium"
 createdAt: "2026-11-05T12:46:56.034Z"
 author:
@@ -44,6 +44,6 @@ Aktuálně když refreshnu stránku, tak automaticky dostanu nové id, hlasy a j
 
 ## 🛠️ Návrh řešení & Historie oprav
 *(Tuto sekci doplňuje řešitel při opravě)*
-- **Příčina**: 
-- **Změny**: 
-- **Commit**: 
+- **Příčina**: Pokud se profil neukládal s denní expirací, buď se při každém refreshi stránky (F5) vygenerovalo nové `id`, jméno a resetovaly se hlasy, nebo naopak zůstal v `localStorage` natrvalo i další týden.
+- **Změny**: V `apps/web/src/App.tsx` zavedena správa denního profilu `getOrCreateDailyUserSession()` a `saveDailyUserSession()`, která ukládá profil (`id`, `name`, `avatarColor`) do `localStorage` spolu s klíčem aktuálního dne (`dateKey: YYYY-MM-DD`) a expirací na konci dne (`expiresAt` v `23:59:59.999`). Během celého dne tak refresh stránky (F5) zachová stejné `id`, hlasy, autorství karet i jméno, zatímco následující den či týden se profil automaticky vymaže a vygeneruje se nový.
+- **Commit**: `fix: resolve BUG-20261105-397 persist user profile until end of day`
