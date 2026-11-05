@@ -116,7 +116,7 @@ Každá retrospektiva prochází těmito fázemi (`RetroPhase`):
 
 ### 3.2 WebSocket komunikace
 - Klient odesílá zprávy typu `ClientMessage` (validováno přes `ClientMessageSchema` v `packages/types`):
-  - `JOIN`, `ADD_CARD`, `UPDATE_CARD`, `DELETE_CARD`, `MOVE_CARD`, `GROUP_CARDS`, `UNGROUP_CARD`, `CAST_VOTE` (s volitelným `voteType: "UP" | "DOWN"`), `REMOVE_VOTE`, `TIMER_CONTROL`, `TYPING_STATUS`, `CLEANUP_PRESENCE`.
+  - `JOIN`, `RENAME_RETROSPECTIVE`, `ADD_CARD`, `UPDATE_CARD`, `DELETE_CARD`, `MOVE_CARD`, `GROUP_CARDS`, `UNGROUP_CARD`, `CAST_VOTE` (s volitelným `voteType: "UP" | "DOWN"`), `REMOVE_VOTE`, `TIMER_CONTROL`, `TYPING_STATUS`, `CLEANUP_PRESENCE`.
 - Server vysílá zprávy typu `ServerMessage`:
   - `SYNC_STATE`: Kompletní stav retrospektivy (s aplikovaným server-side maskováním; zachovává lokální optimistické karty v letu).
   - `PRESENCE_UPDATE`: Seznam aktivních účastníků a indikátory psaní (deduplikovaný a memoizovaný, aby nedocházelo k poblikávání).

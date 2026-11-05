@@ -281,6 +281,28 @@ export class RetroRoom extends DurableObject<Env> {
           break;
         }
 
+        case "RENAME_RETROSPECTIVE": {
+          const newTitle = clientMsg.payload.title.trim().slice(0, 120);
+          if (!newTitle || newTitle === this.state.title) {
+            break;
+          }
+          this.state.title = newTitle;
+          this.broadcastState();
+
+          try {
+            const db = createDb(this.env.DB);
+            await db
+              .update(retrospectives)
+              .set({ title: newTitle })
+              .where(eq(retrospectives.id, this.state.id));
+          } catch (err) {
+            console.error("Chyba při přejmenování retrospektivy v D1:", err);
+          }
+
+          this.scheduleD1Flush();
+          break;
+        }
+
         case "ADD_CARD": {
           const newCard: Card = {
             id: clientMsg.payload.id || crypto.randomUUID(),
@@ -763,6 +785,7 @@ export class RetroRoom extends DurableObject<Env> {
       await db
         .update(retrospectives)
         .set({
+          title: this.state.title,
           phase: this.state.phase,
           cardsBlurred: this.state.cardsBlurred,
           timerEndsAt: this.state.timerEndsAt,

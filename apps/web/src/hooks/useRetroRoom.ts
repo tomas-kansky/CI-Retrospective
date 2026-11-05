@@ -262,6 +262,22 @@ export function useRetroRoom({ roomId, user }: UseRetroRoomOptions) {
   }, []);
 
   // Pomocné akce pro komponenty
+  const renameRetrospective = useCallback(
+    (title: string) => {
+      const trimmedTitle = title.trim().slice(0, 120);
+      if (!trimmedTitle) return;
+
+      // Optimistická aktualizace názvu v UI
+      setState((prev) => (prev ? { ...prev, title: trimmedTitle } : null));
+
+      sendMessage({
+        type: "RENAME_RETROSPECTIVE",
+        payload: { title: trimmedTitle },
+      });
+    },
+    [sendMessage]
+  );
+
   const addCard = useCallback(
     (columnId: string, content: string, isAnonymous: boolean = false) => {
       const trimmedContent = content.trim().slice(0, 255);
@@ -545,6 +561,7 @@ export function useRetroRoom({ roomId, user }: UseRetroRoomOptions) {
     isConnected,
     lastError,
     remainingVotes,
+    renameRetrospective,
     addCard,
     updateCard,
     deleteCard,

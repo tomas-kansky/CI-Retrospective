@@ -116,6 +116,12 @@ export const ClientMessageSchema = z.discriminatedUnion("type", [
     payload: UserSessionSchema,
   }),
   z.object({
+    type: z.literal("RENAME_RETROSPECTIVE"),
+    payload: z.object({
+      title: z.string().trim().min(1).max(120),
+    }),
+  }),
+  z.object({
     type: z.literal("ADD_CARD"),
     payload: z.object({
       id: z.string().optional(),

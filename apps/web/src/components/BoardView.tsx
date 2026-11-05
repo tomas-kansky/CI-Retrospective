@@ -543,6 +543,7 @@ export const BoardView: React.FC<BoardViewProps> = ({ roomId, user, onBack, onUp
     isConnected,
     lastError,
     remainingVotes,
+    renameRetrospective,
     addCard,
     updateCard,
     deleteCard,
@@ -554,6 +555,36 @@ export const BoardView: React.FC<BoardViewProps> = ({ roomId, user, onBack, onUp
     controlTimer,
     setTyping,
   } = useRetroRoom({ roomId, user });
+
+  // Stav pro přejmenování retrospektivy kliknutím na název vlevo nahoře
+  const [isEditingTitle, setIsEditingTitle] = useState(false);
+  const [titleInput, setTitleInput] = useState("");
+
+  const handleStartEditTitle = () => {
+    if (!state) return;
+    setTitleInput(state.title);
+    setIsEditingTitle(true);
+  };
+
+  const handleSaveTitle = () => {
+    if (!state) return;
+    const trimmed = titleInput.trim().slice(0, 120);
+    setIsEditingTitle(false);
+    if (!trimmed || trimmed === state.title) {
+      setTitleInput(state.title);
+      return;
+    }
+    renameRetrospective(trimmed);
+    setPresenceToast(`Název retrospektivy byl změněn na "${trimmed}"`);
+    setTimeout(() => setPresenceToast(null), 3000);
+  };
+
+  const handleCancelEditTitle = () => {
+    if (state) {
+      setTitleInput(state.title);
+    }
+    setIsEditingTitle(false);
+  };
 
   // Lokální stavy pro modály a formuláře
   const [activeNewCardColumn, setActiveNewCardColumn] = useState<string | null>(null);
@@ -998,9 +1029,84 @@ export const BoardView: React.FC<BoardViewProps> = ({ roomId, user, onBack, onUp
             </button>
 
             <div>
-              <h2 style={{ fontSize: "1.2rem", fontWeight: 800, margin: 0, letterSpacing: "-0.02em" }}>
-                {state.title}
-              </h2>
+              {isEditingTitle ? (
+                <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+                  <input
+                    type="text"
+                    autoFocus
+                    maxLength={120}
+                    value={titleInput}
+                    onChange={(e) => setTitleInput(e.target.value)}
+                    onBlur={handleSaveTitle}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") {
+                        e.preventDefault();
+                        handleSaveTitle();
+                      } else if (e.key === "Escape") {
+                        e.preventDefault();
+                        handleCancelEditTitle();
+                      }
+                    }}
+                    style={{
+                      fontSize: "1.1rem",
+                      fontWeight: 800,
+                      letterSpacing: "-0.02em",
+                      padding: "3px 8px",
+                      borderRadius: "var(--radius-sm)",
+                      background: "var(--bg-card)",
+                      border: "1px solid var(--accent-indigo)",
+                      color: "var(--text-main)",
+                      outline: "none",
+                      minWidth: "220px",
+                    }}
+                  />
+                  <button
+                    type="button"
+                    onMouseDown={(e) => e.preventDefault()}
+                    onClick={handleSaveTitle}
+                    title="Uložit nový název (Enter)"
+                    style={{
+                      padding: "5px 8px",
+                      borderRadius: "var(--radius-sm)",
+                      background: "var(--accent-indigo)",
+                      color: "#ffffff",
+                      border: "none",
+                      cursor: "pointer",
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                    }}
+                  >
+                    <Check size={14} />
+                  </button>
+                </div>
+              ) : (
+                <h2
+                  onClick={handleStartEditTitle}
+                  title="Kliknutím přejmenujete retrospektivu"
+                  style={{
+                    fontSize: "1.2rem",
+                    fontWeight: 800,
+                    margin: 0,
+                    letterSpacing: "-0.02em",
+                    cursor: "pointer",
+                    display: "inline-flex",
+                    alignItems: "center",
+                    gap: "8px",
+                    padding: "2px 6px",
+                    marginLeft: "-6px",
+                    borderRadius: "var(--radius-sm)",
+                    transition: "background 0.15s ease",
+                  }}
+                  onMouseEnter={(e) =>
+                    (e.currentTarget.style.background = "rgba(255, 255, 255, 0.05)")
+                  }
+                  onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}
+                >
+                  <span>{state.title}</span>
+                  <Pencil size={13} color="var(--text-dim)" style={{ opacity: 0.7 }} />
+                </h2>
+              )}
               <div style={{ display: "flex", alignItems: "center", gap: "10px", marginTop: "2px" }}>
                 <span style={{ fontSize: "0.75rem", color: "var(--text-muted)" }}>
                   Max hlasů: {state.maxVotesPerUser}
