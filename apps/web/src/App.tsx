@@ -26,6 +26,10 @@ function getTodayDateKey(): string {
   return `${y}-${m}-${d}`;
 }
 
+function getDefaultRetroTitle(): string {
+  return new Date().toLocaleDateString("cs-CZ");
+}
+
 function getEndOfDayTimestamp(): number {
   const end = new Date();
   end.setHours(23, 59, 59, 999);
@@ -114,11 +118,16 @@ export const App: React.FC = () => {
   const [isAnimalGalleryOpen, setIsAnimalGalleryOpen] = useState<boolean>(false);
   const [openActionItemsCount, setOpenActionItemsCount] = useState<number>(0);
 
-  // Formulář pro novou retro
-  const [newTitle, setNewTitle] = useState("");
+  // Formulář pro novou retro (defaultně předvyplněný na dnešní datum)
+  const [newTitle, setNewTitle] = useState(getDefaultRetroTitle);
   const [selectedTemplate, setSelectedTemplate] = useState<TemplateType>("WENT_WELL_TO_IMPROVE");
   const [maxVotes, setMaxVotes] = useState(5);
   const [isCreating, setIsCreating] = useState(false);
+
+  const handleOpenCreateModal = () => {
+    setNewTitle(getDefaultRetroTitle());
+    setIsModalOpen(true);
+  };
 
   // Synchronizace s URL Hash routováním (#board/<id>)
   useEffect(() => {
@@ -207,7 +216,7 @@ export const App: React.FC = () => {
 
       if (res.ok) {
         const created = await res.json();
-        setNewTitle("");
+        setNewTitle(getDefaultRetroTitle());
         setIsModalOpen(false);
         await loadRetrospectives();
         // Přepnout přímo do místnosti
@@ -553,7 +562,7 @@ export const App: React.FC = () => {
             </button>
 
             <button
-              onClick={() => setIsModalOpen(true)}
+              onClick={handleOpenCreateModal}
               style={{
                 padding: "12px 24px",
                 borderRadius: "var(--radius-md)",
@@ -672,7 +681,7 @@ export const App: React.FC = () => {
                 Vytvořte svou první místnost s libovolnou šablonou a pozvěte svůj tým ke společnému brainstormingu.
               </p>
               <button
-                onClick={() => setIsModalOpen(true)}
+                onClick={handleOpenCreateModal}
                 style={{
                   padding: "10px 22px",
                   borderRadius: "var(--radius-md)",
