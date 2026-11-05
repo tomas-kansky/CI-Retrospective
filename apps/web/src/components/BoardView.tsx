@@ -476,20 +476,23 @@ const DraggableCard: React.FC<DraggableCardProps> = ({
             </button>
           )}
 
-          {/* Delete Button */}
-          <button
-            onClick={onDelete}
-            title="Smazat kartu"
-            style={{
-              background: "transparent",
-              color: "var(--text-dim)",
-              padding: "4px",
-              border: "none",
-              cursor: "pointer",
-            }}
-          >
-            <Trash2 size={14} />
-          </button>
+          {/* Delete Button (pouze pro autora karty) */}
+          {canEdit && (
+            <button
+              type="button"
+              onClick={onDelete}
+              title="Smazat kartu"
+              style={{
+                background: "transparent",
+                color: "var(--text-dim)",
+                padding: "4px",
+                border: "none",
+                cursor: "pointer",
+              }}
+            >
+              <Trash2 size={14} />
+            </button>
+          )}
         </div>
       </div>
     </div>

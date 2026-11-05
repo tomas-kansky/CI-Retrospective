@@ -10,7 +10,7 @@
 
 ### Hlavní přednosti:
 - **Nulová latence**: Okamžitá synchronizace přes WebSockets a Cloudflare Durable Objects.
-- **Čisté a přímočaré rozhraní**: Všechny karty (s limitem max. 255 znaků, počítadlem délky a možností inline úpravy textu výhradně jejich autorem) jsou ihned viditelné v reálném čase bez zdržování přepínáním fází či odmaskováváním.
+- **Čisté a přímočaré rozhraní**: Všechny karty (s limitem max. 255 znaků, počítadlem délky a možností inline úpravy či smazání karty výhradně jejím autorem) jsou ihned viditelné v reálném čase bez zdržování přepínáním fází či odmaskováváním.
 - **Hierarchické seskupování karet**: Přetažením karty na jinou kartu vzniká skupina myšlenek (`parentCardId`).
 - **Anonymní zvířata & Galerie připojených zvířátek**: Přátelské a vtipné generování jmen ve stylu Google Docs (např. *Anonymní Vombat*, *Anonymní Axolotl*) doplněné o ilustrovanou **Galerii připojených zvířátek** (`AnimalGalleryModal.tsx`) dostupnou přes tlačítko `🐾 Zvířátka` v horní liště tabule. Profil (`id`, hlasy, autorství karet i jméno) je provázán s prohlížečem do konce kalendářního dne (`23:59:59`), takže přežije F5 refresh stránky, ale další den či týden se automaticky obnoví.
 - **Časovač & Globální Akční kroky**: Synchronizovaný odpočet s předvolbami i vlastním časem, sjednocená správa globálních Akčních kroků napříč všemi boards (jak v bočním panelu na tabuli, tak na hlavní stránce) se záložkami *Vše*, *K vyřešení* (výchozí) a *Hotovo*, tlačítkem *Mark as Done* a přenosem karet z tabule.

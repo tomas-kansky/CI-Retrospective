@@ -2,7 +2,7 @@
 id: "BUG-20261105-441"
 title: "Uživatel nesmí mít možnost odebrat karty cizích uživatelů"
 type: "bug"
-status: "open"
+status: "resolved"
 priority: "medium"
 createdAt: "2026-11-05T12:41:51.897Z"
 author:
@@ -44,6 +44,6 @@ Můžu mít pouze možnost odebrat vlastní karty
 
 ## 🛠️ Návrh řešení & Historie oprav
 *(Tuto sekci doplňuje řešitel při opravě)*
-- **Příčina**: 
-- **Změny**: 
-- **Commit**: 
+- **Příčina**: V komponentě `DraggableCard` v `apps/web/src/components/BoardView.tsx` se tlačítko pro smazání karty (`Trash2`) zobrazovalo na všech kartách bez kontroly autorství (`canEdit`). Na serveru v `apps/server/src/room.ts` navíc handler `DELETE_CARD` povoloval smazání komukoliv s výchozím příznakem `isFacilitator`.
+- **Změny**: V `apps/web/src/components/BoardView.tsx` je tlačítko `Trash2` podmíněno příznakem `canEdit` (`card.authorSessionId === user.id`), takže se zobrazí pouze u vlastních karet. V `apps/server/src/room.ts` je v `DELETE_CARD` vynucena striktní kontrola `card.authorSessionId === attachment.userId`.
+- **Commit**: `fix: resolve BUG-20261105-441 allow only card author to delete card`

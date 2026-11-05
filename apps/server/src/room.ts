@@ -328,8 +328,9 @@ export class RetroRoom extends DurableObject<Env> {
           if (cardIndex === -1) return;
 
           const card = this.state.cards[cardIndex];
-          if (card.authorSessionId !== attachment.userId && !attachment.isFacilitator) {
-            this.sendError(ws, "Nemáte oprávnění smazat tuto kartu");
+          // Smazat kartu může výhradně uživatel, který ji přidal
+          if (card.authorSessionId !== attachment.userId) {
+            this.sendError(ws, "Smazat kartu může pouze uživatel, který ji přidal");
             return;
           }
 
