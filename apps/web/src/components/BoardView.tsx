@@ -47,7 +47,6 @@ import { useRetroRoom } from "../hooks/useRetroRoom";
 import { ShareModal } from "./ShareModal";
 import { ActionItemsDrawer } from "./ActionItemsDrawer";
 import { BugReportModal } from "./BugReportModal";
-import { AnimalGalleryModal } from "./AnimalGalleryModal";
 import { getRandomAnonymousName, getAnimalVisualInfo } from "../utils/names";
 
 // Draggable & Droppable Card Component
@@ -605,7 +604,6 @@ export const BoardView: React.FC<BoardViewProps> = ({ roomId, user, onBack, onUp
   // Modály
   const [isShareOpen, setIsShareOpen] = useState(false);
   const [isActionItemsOpen, setIsActionItemsOpen] = useState(false);
-  const [isAnimalGalleryOpen, setIsAnimalGalleryOpen] = useState(false);
   const [globalOpenActionItemsCount, setGlobalOpenActionItemsCount] = useState<number>(0);
   const [isCopyingActionItems, setIsCopyingActionItems] = useState(false);
   const [copiedActionItemsSuccess, setCopiedActionItemsSuccess] = useState(false);
@@ -1333,30 +1331,6 @@ export const BoardView: React.FC<BoardViewProps> = ({ roomId, user, onBack, onUp
               <span>Nahlásit chybu</span>
             </button>
 
-            {/* Tlačítko Galerie připojených zvířátek */}
-            <button
-              type="button"
-              onClick={() => setIsAnimalGalleryOpen(true)}
-              title="Zobrazit galerii obrázků všech aktuálně připojených zvířátek"
-              style={{
-                padding: "6px 11px",
-                borderRadius: "var(--radius-sm)",
-                background: "rgba(99, 102, 241, 0.12)",
-                border: "1px solid rgba(99, 102, 241, 0.35)",
-                color: "var(--accent-indigo)",
-                display: "flex",
-                alignItems: "center",
-                gap: "6px",
-                fontSize: "0.82rem",
-                fontWeight: 700,
-                cursor: "pointer",
-                transition: "all 0.15s ease",
-              }}
-            >
-              <span style={{ fontSize: "0.95rem", lineHeight: 1 }}>🐾</span>
-              <span>Zvířátka</span>
-            </button>
-
             {/* Online Presence Avatars & Dropdown Popover */}
             <div style={{ position: "relative" }}>
               <div
@@ -1550,33 +1524,6 @@ export const BoardView: React.FC<BoardViewProps> = ({ roomId, user, onBack, onUp
                       );
                     })}
                   </div>
-
-                  {/* Odkaz do Galerie připojených zvířátek */}
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setIsPresenceMenuOpen(false);
-                      setIsAnimalGalleryOpen(true);
-                    }}
-                    style={{
-                      width: "100%",
-                      padding: "7px 10px",
-                      borderRadius: "var(--radius-sm)",
-                      background: "rgba(99, 102, 241, 0.12)",
-                      border: "1px solid rgba(99, 102, 241, 0.3)",
-                      color: "var(--accent-indigo)",
-                      fontSize: "0.78rem",
-                      fontWeight: 700,
-                      cursor: "pointer",
-                      display: "flex",
-                      alignItems: "center",
-                      justifyContent: "center",
-                      gap: "6px",
-                    }}
-                  >
-                    <span>🐾</span>
-                    <span>Otevřít galerii připojených zvířátek</span>
-                  </button>
 
                   {/* Profile & Name change section */}
                   <div
@@ -2207,16 +2154,6 @@ export const BoardView: React.FC<BoardViewProps> = ({ roomId, user, onBack, onUp
         roomId={roomId}
         phase={state.phase}
         currentUser={user}
-      />
-
-      {/* Galerie připojených zvířátek */}
-      <AnimalGalleryModal
-        isOpen={isAnimalGalleryOpen}
-        onClose={() => setIsAnimalGalleryOpen(false)}
-        onlineUsers={uniqueOnlineUsers}
-        currentUserId={user.id}
-        typingUserIds={typingUsers.map((t) => t.userId)}
-        onRollRandomName={handleRollRandomName}
       />
 
       {/* Drag Overlay pro plynulý náhled tažené karty pod kurzorem */}

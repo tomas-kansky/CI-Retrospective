@@ -4,7 +4,8 @@ import type { TemplateType, UserSession } from "@ci-retro/types";
 import { BoardView } from "./components/BoardView";
 import { BugReportModal } from "./components/BugReportModal";
 import { GlobalActionItemsModal } from "./components/GlobalActionItemsModal";
-import { getRandomAnonymousName } from "./utils/names";
+import { AnimalGalleryModal } from "./components/AnimalGalleryModal";
+import { getRandomAnonymousName, getAnimalVisualInfo } from "./utils/names";
 
 interface RetroItem {
   id: string;
@@ -110,6 +111,7 @@ export const App: React.FC = () => {
   const [isModalOpen, setIsModalOpen] = useState<boolean>(false);
   const [isBugReportOpen, setIsBugReportOpen] = useState<boolean>(false);
   const [isTasksModalOpen, setIsTasksModalOpen] = useState<boolean>(false);
+  const [isAnimalGalleryOpen, setIsAnimalGalleryOpen] = useState<boolean>(false);
   const [openActionItemsCount, setOpenActionItemsCount] = useState<number>(0);
 
   // Formulář pro novou retro
@@ -348,30 +350,52 @@ export const App: React.FC = () => {
           </div>
         </div>
 
-        <div style={{ display: "flex", alignItems: "center", gap: "16px" }}>
-          <div
+        <div style={{ display: "flex", alignItems: "center", gap: "12px", flexWrap: "wrap" }}>
+          <button
+            type="button"
+            onClick={() => setIsAnimalGalleryOpen(true)}
+            title="Klikněte pro zobrazení reálné fotky vašeho zvířátka a celé fotogalerie"
             style={{
               display: "flex",
               alignItems: "center",
               gap: "8px",
-              fontSize: "0.8rem",
-              padding: "6px 12px",
+              fontSize: "0.82rem",
+              fontWeight: 600,
+              padding: "6px 14px",
               borderRadius: "var(--radius-full)",
               background: "var(--bg-card)",
               border: "1px solid var(--border-color)",
-              color: "var(--text-muted)",
+              color: "var(--text-main)",
+              cursor: "pointer",
             }}
           >
-            <span
-              style={{
-                width: "8px",
-                height: "8px",
-                borderRadius: "50%",
-                background: "var(--accent-emerald)",
-              }}
-            />
-            {currentUser.name}
-          </div>
+            <span style={{ fontSize: "1rem", lineHeight: 1 }}>
+              {getAnimalVisualInfo(currentUser.name).emoji}
+            </span>
+            <span>{currentUser.name}</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setIsAnimalGalleryOpen(true)}
+            title="Otevřít fotogalerii reálných zvířátek"
+            style={{
+              padding: "8px 14px",
+              borderRadius: "var(--radius-md)",
+              background: "rgba(99, 102, 241, 0.12)",
+              color: "var(--accent-indigo)",
+              display: "flex",
+              alignItems: "center",
+              gap: "6px",
+              fontSize: "0.85rem",
+              fontWeight: 700,
+              border: "1px solid rgba(99, 102, 241, 0.35)",
+              cursor: "pointer",
+            }}
+          >
+            <span style={{ fontSize: "1rem", lineHeight: 1 }}>🐾</span>
+            <span>Zvířátka</span>
+          </button>
 
           <button
             onClick={toggleTheme}
@@ -822,6 +846,23 @@ export const App: React.FC = () => {
           loadActionItemsCount();
         }}
         onOpenRetro={(id) => handleOpenRoom(id)}
+      />
+
+      {/* Fotogalerie reálných zvířátek (pouze na úvodní obrazovce) */}
+      <AnimalGalleryModal
+        isOpen={isAnimalGalleryOpen}
+        onClose={() => setIsAnimalGalleryOpen(false)}
+        currentUser={currentUser}
+        onSelectAnimalName={(newName) => {
+          const updated = { ...currentUser, name: newName };
+          setCurrentUser(updated);
+          saveDailyUserSession(updated);
+        }}
+        onRollRandomName={() => {
+          const updated = { ...currentUser, name: getRandomAnonymousName() };
+          setCurrentUser(updated);
+          saveDailyUserSession(updated);
+        }}
       />
     </div>
   );
