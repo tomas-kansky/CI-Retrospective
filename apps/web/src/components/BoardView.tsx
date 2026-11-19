@@ -542,6 +542,7 @@ export const BoardView: React.FC<BoardViewProps> = ({ roomId, user, onBack, onUp
     typingUsers,
     isConnected,
     lastError,
+    roomNotFound,
     remainingVotes,
     renameRetrospective,
     addCard,
@@ -555,6 +556,13 @@ export const BoardView: React.FC<BoardViewProps> = ({ roomId, user, onBack, onUp
     controlTimer,
     setTyping,
   } = useRetroRoom({ roomId, user });
+
+  // Pokud daná retrospektiva neexistuje (např. smazaná nebo stará cached URL), okamžitě přesměrujeme na Home Page
+  useEffect(() => {
+    if (roomNotFound) {
+      onBack();
+    }
+  }, [roomNotFound, onBack]);
 
   // Stav pro přejmenování retrospektivy kliknutím na název vlevo nahoře
   const [isEditingTitle, setIsEditingTitle] = useState(false);

@@ -238,10 +238,39 @@ export const App: React.FC = () => {
   };
 
   const handleBackToDashboard = () => {
-    window.location.hash = "";
+    if (window.location.hash) {
+      window.history.replaceState(null, "", window.location.pathname + window.location.search);
+    }
+    setCurrentRoomId(null);
     loadRetrospectives();
     loadActionItemsCount();
   };
+
+  // Pokud uživatel otevřel URL s #board/<id>, která v načteném seznamu retrospektiv neexistuje, přesměrujeme ho na Home Page
+  useEffect(() => {
+    if (!currentRoomId || isLoading) return;
+    const existsInList = retros.some((r) => r.id === currentRoomId);
+    if (!existsInList) {
+      let cancelled = false;
+      fetch(`/api/retrospectives/${encodeURIComponent(currentRoomId)}`)
+        .then((res) => {
+          if (!cancelled && res.status === 404) {
+            if (window.location.hash) {
+              window.history.replaceState(
+                null,
+                "",
+                window.location.pathname + window.location.search
+              );
+            }
+            setCurrentRoomId(null);
+          }
+        })
+        .catch(() => {});
+      return () => {
+        cancelled = true;
+      };
+    }
+  }, [currentRoomId, isLoading, retros]);
 
   // Pokud je v URL vybrána konkrétní místnost, zobrazíme real-time BoardView
   if (currentRoomId) {

@@ -120,7 +120,7 @@ Každá retrospektiva prochází těmito fázemi (`RetroPhase`):
 - Server vysílá zprávy typu `ServerMessage`:
   - `SYNC_STATE`: Kompletní stav retrospektivy (s aplikovaným server-side maskováním; zachovává lokální optimistické karty v letu).
   - `PRESENCE_UPDATE`: Seznam aktivních účastníků a indikátory psaní (deduplikovaný a memoizovaný, aby nedocházelo k poblikávání).
-  - `ERROR`: Chybová hlášení pro klienta.
+  - `ERROR`: Chybová hlášení pro klienta (včetně kódu `ROOM_NOT_FOUND` a close kódu `4004`, který na klientovi okamžitě zastaví reconnect a přesměruje uživatele z neexistující/smazané tabule na Home Page).
 
 ### 3.3 Indikace psaní a automatické čištění přítomnosti (Presence & Typing Management)
 - **Throttling psaní**: Klient odesílá `TYPING_STATUS` s throttlem (maximálně jednou při zahájení psaní, nikoliv na každý úhoz). Server broadcastuje změnu pouze při reálné změně sloupce. Po 2,5 s neaktivity se indikátor automaticky resetuje.

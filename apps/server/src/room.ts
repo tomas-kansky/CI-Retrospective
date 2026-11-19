@@ -195,6 +195,20 @@ export class RetroRoom extends DurableObject<Env> {
       server.serializeAttachment(attachment);
 
       try {
+        // Pokud už byl stav v paměti DO, ověříme při novém připojení, že retrospektiva nebyla mezitím smazána z D1
+        if (this.state && this.isLoadedFromDb) {
+          const db = createDb(this.env.DB);
+          const exists = await db.query.retrospectives.findFirst({
+            where: eq(retrospectives.id, roomId),
+            columns: { id: true },
+          });
+          if (!exists) {
+            this.state = null;
+            this.isLoadedFromDb = false;
+            throw new Error(`Retrospective ${roomId} not found in D1`);
+          }
+        }
+
         // Zajistíme načtení stavu
         await this.ensureStateLoaded(roomId);
 
@@ -204,8 +218,19 @@ export class RetroRoom extends DurableObject<Env> {
         // Oznámíme ostatním nového uživatele v místnosti
         this.broadcastPresence();
       } catch (err: any) {
+        const errMsg = String(err?.message || err);
         console.error(`Chyba při načítání stavu místnosti ${roomId}:`, err);
-        this.sendError(server, `Chyba při načítání stavu: ${err?.message || err}`);
+        const isNotFound = errMsg.includes("not found in D1");
+        this.sendError(
+          server,
+          `Chyba při načítání stavu: ${errMsg}`,
+          isNotFound ? "ROOM_NOT_FOUND" : undefined
+        );
+        if (isNotFound) {
+          try {
+            server.close(4004, "Room not found");
+          } catch {}
+        }
       }
 
       return new Response(null, {
@@ -267,7 +292,10 @@ export class RetroRoom extends DurableObject<Env> {
       }
 
       if (!this.state) {
-        this.sendError(ws, "Místnost není inicializována");
+        this.sendError(ws, "Místnost není inicializována", "ROOM_NOT_FOUND");
+        try {
+          ws.close(4004, "Room not found");
+        } catch {}
         return;
       }
 
@@ -744,10 +772,10 @@ export class RetroRoom extends DurableObject<Env> {
     }
   }
 
-  private sendError(ws: WebSocket, message: string) {
+  private sendError(ws: WebSocket, message: string, code?: string) {
     const msg: ServerMessage = {
       type: "ERROR",
-      payload: { message },
+      payload: { message, ...(code ? { code } : {}) },
     };
     try {
       ws.send(JSON.stringify(msg));

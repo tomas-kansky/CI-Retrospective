@@ -18,6 +18,7 @@ export function useRetroRoom({ roomId, user }: UseRetroRoomOptions) {
   const [typingUsers, setTypingUsers] = useState<Array<{ userId: string; columnId?: string }>>([]);
   const [isConnected, setIsConnected] = useState<boolean>(false);
   const [lastError, setLastError] = useState<string | null>(null);
+  const [roomNotFound, setRoomNotFound] = useState<boolean>(false);
 
   const socketRef = useRef<WebSocket | null>(null);
   const reconnectTimeoutRef = useRef<any>(null);
@@ -25,11 +26,48 @@ export function useRetroRoom({ roomId, user }: UseRetroRoomOptions) {
   const lastPresenceUpdateAtRef = useRef<number>(0);
   const pendingUsersRef = useRef<UserSession[] | null>(null);
   const messageQueueRef = useRef<ClientMessage[]>([]);
+  const roomNotFoundRef = useRef<boolean>(false);
   const userRef = useRef<UserSession>(user);
   userRef.current = user;
 
-  const connect = useCallback(() => {
+  // Rychlé ověření existence retrospektivy přes REST API (zabrání zaseknutí na neexistující/smazané tabuli)
+  useEffect(() => {
     if (!roomId) return;
+    let cancelled = false;
+    roomNotFoundRef.current = false;
+    setRoomNotFound(false);
+
+    fetch(`/api/retrospectives/${encodeURIComponent(roomId)}`)
+      .then((res) => {
+        if (!cancelled && res.status === 404) {
+          roomNotFoundRef.current = true;
+          setRoomNotFound(true);
+          if (reconnectTimeoutRef.current) {
+            clearTimeout(reconnectTimeoutRef.current);
+            reconnectTimeoutRef.current = null;
+          }
+          if (socketRef.current) {
+            const ws = socketRef.current;
+            socketRef.current = null;
+            ws.onopen = null;
+            ws.onmessage = null;
+            ws.onerror = null;
+            ws.onclose = null;
+            try {
+              ws.close(1000, "Room not found");
+            } catch {}
+          }
+        }
+      })
+      .catch(() => {});
+
+    return () => {
+      cancelled = true;
+    };
+  }, [roomId]);
+
+  const connect = useCallback(() => {
+    if (!roomId || roomNotFoundRef.current) return;
 
     // Zrušit případný běžící časovač reconnectu, aby nevznikla paralelní smyčka
     if (reconnectTimeoutRef.current) {
@@ -158,20 +196,44 @@ export function useRetroRoom({ roomId, user }: UseRetroRoomOptions) {
             setState((prev) => (prev ? { ...prev, ...msg.payload } : null));
             break;
 
-          case "ERROR":
-            setLastError(msg.payload.message);
+          case "ERROR": {
+            const errMsg = msg.payload.message || "";
+            if (
+              msg.payload.code === "ROOM_NOT_FOUND" ||
+              errMsg.includes("not found in D1") ||
+              errMsg.includes("nebyla nalezena") ||
+              errMsg.includes("není inicializována")
+            ) {
+              roomNotFoundRef.current = true;
+              setRoomNotFound(true);
+              if (reconnectTimeoutRef.current) {
+                clearTimeout(reconnectTimeoutRef.current);
+                reconnectTimeoutRef.current = null;
+              }
+              try {
+                ws.close(1000, "Room not found");
+              } catch {}
+              return;
+            }
+            setLastError(errMsg);
             // Automaticky vyčistit chybovou hlášku po 4 sekundách
             setTimeout(() => setLastError(null), 4000);
             break;
+          }
         }
       } catch (err) {
         console.error("Chyba při čtení WS zprávy:", err);
       }
     };
 
-    ws.onclose = () => {
+    ws.onclose = (event) => {
       if (socketRef.current !== ws) return;
       setIsConnected(false);
+      if (event.code === 4004 || roomNotFoundRef.current) {
+        roomNotFoundRef.current = true;
+        setRoomNotFound(true);
+        return;
+      }
       // Automatický reconnect po 2 sekundách
       if (reconnectTimeoutRef.current) {
         clearTimeout(reconnectTimeoutRef.current);
@@ -560,6 +622,7 @@ export function useRetroRoom({ roomId, user }: UseRetroRoomOptions) {
     typingUsers,
     isConnected,
     lastError,
+    roomNotFound,
     remainingVotes,
     renameRetrospective,
     addCard,
