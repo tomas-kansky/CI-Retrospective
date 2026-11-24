@@ -16,6 +16,7 @@ export type RetroPhase = z.infer<typeof RetroPhaseSchema>;
 
 export const TemplateTypeSchema = z.enum([
   "WENT_WELL_TO_IMPROVE", // Went well, To improve, Action items
+  "PUB_RETRO",            // 🍺 Na co si připijeme, 🤬 Zapičuj si, 🛠️ Jak to příště neposrat
   "MAD_SAD_GLAD",         // Mad, Sad, Glad
   "START_STOP_CONTINUE",   // Start, Stop, Continue
   "FOUR_LS",              // Liked, Learned, Lacked, Longed for

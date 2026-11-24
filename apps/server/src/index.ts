@@ -293,6 +293,11 @@ app.post("/api/retrospectives", async (c) => {
       { title: "Co zlepšit (To improve)", color: "#f43f5e" },
       { title: "Akční kroky (Action items)", color: "#6366f1" },
     ],
+    PUB_RETRO: [
+      { title: "🍺 Na co si připijeme", color: "#10b981" },
+      { title: "🤬 Zapičuj si", color: "#f43f5e" },
+      { title: "🛠️ Jak to příště neposrat", color: "#6366f1" },
+    ],
     MAD_SAD_GLAD: [
       { title: "Mad (Hněv / Frustrace)", color: "#f43f5e" },
       { title: "Sad (Smutek / Zklamání)", color: "#f59e0b" },

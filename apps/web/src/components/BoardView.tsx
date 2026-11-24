@@ -49,6 +49,11 @@ import { ActionItemsDrawer } from "./ActionItemsDrawer";
 import { BugReportModal } from "./BugReportModal";
 import { getRandomAnonymousName, getAnimalVisualInfo } from "../utils/names";
 
+function isActionItemsColumnTitle(title: string): boolean {
+  const lower = title.toLowerCase();
+  return lower.includes("akční") || lower.includes("action") || lower.includes("neposrat");
+}
+
 // Draggable & Droppable Card Component
 interface DraggableCardProps {
   card: Card;
@@ -1785,9 +1790,7 @@ export const BoardView: React.FC<BoardViewProps> = ({ roomId, user, onBack, onUp
               rootCards.sort((a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0));
             }
 
-            const isActionItemsColumn =
-              column.title.toLowerCase().includes("akční") ||
-              column.title.toLowerCase().includes("action");
+            const isActionItemsColumn = isActionItemsColumnTitle(column.title);
 
             return (
               <DroppableColumn key={column.id} column={column} cards={colAllCards}>
@@ -2240,8 +2243,7 @@ export const BoardView: React.FC<BoardViewProps> = ({ roomId, user, onBack, onUp
           .filter((card) => {
             const col = state.columns.find((c) => c.id === card.columnId);
             if (!col) return false;
-            const titleLower = col.title.toLowerCase();
-            return titleLower.includes("akční") || titleLower.includes("action");
+            return isActionItemsColumnTitle(col.title);
           })
           .map((c) => c.content)}
         isOpen={isActionItemsOpen}
