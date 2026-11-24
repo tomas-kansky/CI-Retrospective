@@ -110,7 +110,7 @@ export const AnimalGalleryModal: React.FC<AnimalGalleryModalProps> = ({
             </div>
             <div>
               <h3 style={{ fontSize: "1.25rem", fontWeight: 800, margin: 0, letterSpacing: "-0.02em" }}>
-                Atlas a fotogalerie zvířátek
+                Digitální zoo
               </h3>
               <p style={{ margin: 0, fontSize: "0.8rem", color: "var(--text-muted)" }}>
                 Podívejte se, jak v reálu vypadá vaše dnešní zvířátko: <strong style={{ color: "var(--text-main)" }}>{currentUser.name}</strong>

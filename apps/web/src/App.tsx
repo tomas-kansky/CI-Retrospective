@@ -285,6 +285,24 @@ export const App: React.FC = () => {
     }
   }, [currentRoomId, isLoading, retros]);
 
+  const animalGalleryModal = (
+    <AnimalGalleryModal
+      isOpen={isAnimalGalleryOpen}
+      onClose={() => setIsAnimalGalleryOpen(false)}
+      currentUser={currentUser}
+      onSelectAnimalName={(newName) => {
+        const updated = { ...currentUser, name: newName };
+        setCurrentUser(updated);
+        saveDailyUserSession(updated);
+      }}
+      onRollRandomName={() => {
+        const updated = { ...currentUser, name: getRandomAnonymousName() };
+        setCurrentUser(updated);
+        saveDailyUserSession(updated);
+      }}
+    />
+  );
+
   // Pokud je v URL vybrána konkrétní místnost, zobrazíme real-time BoardView
   if (currentRoomId) {
     return (
@@ -325,10 +343,31 @@ export const App: React.FC = () => {
             </span>
           </div>
 
-          <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: "12px", flexWrap: "wrap" }}>
             <span style={{ fontSize: "0.8rem", color: "var(--text-muted)" }}>
               Jste přihlášen jako: <strong>{currentUser.name}</strong>
             </span>
+            <button
+              type="button"
+              onClick={() => setIsAnimalGalleryOpen(true)}
+              title="Otevřít Digitální zoo"
+              style={{
+                padding: "5px 11px",
+                borderRadius: "var(--radius-sm)",
+                background: "rgba(99, 102, 241, 0.12)",
+                color: "var(--accent-indigo)",
+                display: "flex",
+                alignItems: "center",
+                gap: "5px",
+                fontSize: "0.8rem",
+                fontWeight: 700,
+                border: "1px solid rgba(99, 102, 241, 0.35)",
+                cursor: "pointer",
+              }}
+            >
+              <span style={{ fontSize: "0.9rem", lineHeight: 1 }}>🐾</span>
+              <span>Digitální zoo</span>
+            </button>
             <button
               onClick={toggleTheme}
               style={{
@@ -357,6 +396,8 @@ export const App: React.FC = () => {
             saveDailyUserSession(updated);
           }}
         />
+
+        {animalGalleryModal}
       </div>
     );
   }
@@ -405,7 +446,7 @@ export const App: React.FC = () => {
           <button
             type="button"
             onClick={() => setIsAnimalGalleryOpen(true)}
-            title="Klikněte pro zobrazení reálné fotky vašeho zvířátka a celé fotogalerie"
+            title="Klikněte pro zobrazení vašeho zvířátka v Digitální zoo"
             style={{
               display: "flex",
               alignItems: "center",
@@ -429,7 +470,7 @@ export const App: React.FC = () => {
           <button
             type="button"
             onClick={() => setIsAnimalGalleryOpen(true)}
-            title="Otevřít fotogalerii reálných zvířátek"
+            title="Otevřít Digitální zoo"
             style={{
               padding: "8px 14px",
               borderRadius: "var(--radius-md)",
@@ -445,7 +486,7 @@ export const App: React.FC = () => {
             }}
           >
             <span style={{ fontSize: "1rem", lineHeight: 1 }}>🐾</span>
-            <span>Zvířátka</span>
+            <span>Digitální zoo</span>
           </button>
 
           <button
@@ -865,22 +906,8 @@ export const App: React.FC = () => {
         onOpenRetro={(id) => handleOpenRoom(id)}
       />
 
-      {/* Fotogalerie reálných zvířátek (pouze na úvodní obrazovce) */}
-      <AnimalGalleryModal
-        isOpen={isAnimalGalleryOpen}
-        onClose={() => setIsAnimalGalleryOpen(false)}
-        currentUser={currentUser}
-        onSelectAnimalName={(newName) => {
-          const updated = { ...currentUser, name: newName };
-          setCurrentUser(updated);
-          saveDailyUserSession(updated);
-        }}
-        onRollRandomName={() => {
-          const updated = { ...currentUser, name: getRandomAnonymousName() };
-          setCurrentUser(updated);
-          saveDailyUserSession(updated);
-        }}
-      />
+      {/* Digitální zoo (sdílený modal dostupný i z horní lišty na tabuli) */}
+      {animalGalleryModal}
     </div>
   );
 };
