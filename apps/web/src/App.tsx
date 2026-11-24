@@ -21,10 +21,6 @@ const USER_STORAGE_KEY = "ci_retro_user";
 const TEMPLATE_LABELS: Record<string, string> = {
   WENT_WELL_TO_IMPROVE: "Went Well / To Improve / Action Items",
   PUB_RETRO: "🍺 Na co si připijeme / 🤬 Zapičuj si / 🛠️ Jak to příště neposrat",
-  MAD_SAD_GLAD: "Mad / Sad / Glad",
-  START_STOP_CONTINUE: "Start / Stop / Continue",
-  FOUR_LS: "4Ls (Liked, Learned, Lacked, Longed for)",
-  CUSTOM: "Vlastní prázdné sloupce",
 };
 
 function getTemplateLabel(templateType: string): string {
@@ -806,7 +802,7 @@ export const App: React.FC = () => {
 
               <div>
                 <label style={{ display: "block", fontSize: "0.85rem", fontWeight: 600, marginBottom: "8px" }}>
-                  Výchozí šablona sloupců
+                  Šablona sloupců
                 </label>
                 <select
                   value={selectedTemplate}
@@ -823,10 +819,6 @@ export const App: React.FC = () => {
                 >
                   <option value="WENT_WELL_TO_IMPROVE">Went Well / To Improve / Action Items</option>
                   <option value="PUB_RETRO">🍺 Na co si připijeme / 🤬 Zapičuj si / 🛠️ Jak to příště neposrat</option>
-                  <option value="MAD_SAD_GLAD">Mad / Sad / Glad</option>
-                  <option value="START_STOP_CONTINUE">Start / Stop / Continue</option>
-                  <option value="FOUR_LS">4Ls (Liked, Learned, Lacked, Longed for)</option>
-                  <option value="CUSTOM">Vlastní prázdné sloupce</option>
                 </select>
               </div>
 

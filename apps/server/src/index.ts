@@ -298,26 +298,6 @@ app.post("/api/retrospectives", async (c) => {
       { title: "🤬 Zapičuj si", color: "#f43f5e" },
       { title: "🛠️ Jak to příště neposrat", color: "#6366f1" },
     ],
-    MAD_SAD_GLAD: [
-      { title: "Mad (Hněv / Frustrace)", color: "#f43f5e" },
-      { title: "Sad (Smutek / Zklamání)", color: "#f59e0b" },
-      { title: "Glad (Radost / Úspěch)", color: "#10b981" },
-    ],
-    START_STOP_CONTINUE: [
-      { title: "Start (Začít dělat)", color: "#10b981" },
-      { title: "Stop (Přestat dělat)", color: "#f43f5e" },
-      { title: "Continue (Pokračovat)", color: "#3b82f6" },
-    ],
-    FOUR_LS: [
-      { title: "Liked (Líbilo se)", color: "#10b981" },
-      { title: "Learned (Naučili jsme se)", color: "#3b82f6" },
-      { title: "Lacked (Chybělo nám)", color: "#f59e0b" },
-      { title: "Longed for (Přáli bychom si)", color: "#8b5cf6" },
-    ],
-    CUSTOM: [
-      { title: "Sloupec 1", color: "#6366f1" },
-      { title: "Sloupec 2", color: "#10b981" },
-    ],
   };
 
   const selectedCols = templateColumnsMap[templateType] || templateColumnsMap.WENT_WELL_TO_IMPROVE;
