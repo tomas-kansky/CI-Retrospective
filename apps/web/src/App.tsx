@@ -1,14 +1,35 @@
-import React, { useState, useEffect } from "react";
-import { Sparkles, Moon, Sun, Plus, RefreshCw, Layers, X, ArrowRight, Bug, CheckSquare } from "lucide-react";
-import type { TemplateType, UserSession } from "@ci-retro/types";
+import React, { useState, useEffect, useCallback } from "react";
+import {
+  Sparkles,
+  Moon,
+  Sun,
+  Plus,
+  RefreshCw,
+  Layers,
+  X,
+  ArrowRight,
+  Bug,
+  CheckSquare,
+  Share2,
+  Shield,
+  LogOut,
+  ArrowLeft,
+  Trash2,
+  AlertTriangle,
+} from "lucide-react";
+import type { AdminTeamSummary, Team, TemplateType, UserRole, UserSession } from "@ci-retro/types";
 import { BoardView } from "./components/BoardView";
 import { BugReportModal } from "./components/BugReportModal";
 import { GlobalActionItemsModal } from "./components/GlobalActionItemsModal";
 import { AnimalGalleryModal } from "./components/AnimalGalleryModal";
+import { LoginView } from "./components/LoginView";
+import { AdminTeamsView } from "./components/AdminTeamsView";
+import { ShareModal } from "./components/ShareModal";
 import { getRandomAnonymousName, getAnimalVisualInfo } from "./utils/names";
 
 interface RetroItem {
   id: string;
+  teamId?: string;
   title: string;
   phase: string;
   templateType: string;
@@ -57,8 +78,6 @@ function saveDailyUserSession(session: UserSession): void {
 }
 
 // Načtení nebo vytvoření denního profilu (platného do konce aktuálního kalendářního dne 23:59:59).
-// Při refreshi stránky (F5) během dne zůstane zachováno ID, hlasy, autorství karet i jméno;
-// další den nebo další týden se starý profil automaticky zneplatní a vygeneruje se nový.
 function getOrCreateDailyUserSession(): UserSession {
   const todayKey = getTodayDateKey();
   const now = Date.now();
@@ -119,19 +138,42 @@ export const App: React.FC = () => {
   const [currentUser, setCurrentUser] = useState<UserSession>(getOrCreateDailyUserSession);
   const [currentRoomId, setCurrentRoomId] = useState<string | null>(null);
 
+  // Autentizace & multi-tenancy stavy
+  const [authLoading, setAuthLoading] = useState<boolean>(true);
+  const [authenticated, setAuthenticated] = useState<boolean>(false);
+  const [role, setRole] = useState<UserRole | null>(null);
+  const [activeTeam, setActiveTeam] = useState<Team | null>(null);
+  const [lockedUntil, setLockedUntil] = useState<number | null>(null);
+  const [authError, setAuthError] = useState<string | null>(null);
+
+  // Admin správa týmů
+  const [adminTeams, setAdminTeams] = useState<AdminTeamSummary[]>([]);
+  const [adminTeamsLoading, setAdminTeamsLoading] = useState<boolean>(false);
+  const [shareTargetTeam, setShareTargetTeam] = useState<Team | null>(null);
+  const [resolvingRoomTeam, setResolvingRoomTeam] = useState<boolean>(false);
+
+  // Stavy Dashboardu aktivního týmu
   const [retros, setRetros] = useState<RetroItem[]>([]);
-  const [isLoading, setIsLoading] = useState<boolean>(true);
+  const [isLoading, setIsLoading] = useState<boolean>(false);
   const [isModalOpen, setIsModalOpen] = useState<boolean>(false);
   const [isBugReportOpen, setIsBugReportOpen] = useState<boolean>(false);
   const [isTasksModalOpen, setIsTasksModalOpen] = useState<boolean>(false);
   const [isAnimalGalleryOpen, setIsAnimalGalleryOpen] = useState<boolean>(false);
+  const [isDashboardShareOpen, setIsDashboardShareOpen] = useState<boolean>(false);
   const [openActionItemsCount, setOpenActionItemsCount] = useState<number>(0);
+  const [retroToDelete, setRetroToDelete] = useState<RetroItem | null>(null);
+  const [isDeletingRetro, setIsDeletingRetro] = useState<boolean>(false);
 
   // Formulář pro novou retro (defaultně předvyplněný na dnešní datum)
   const [newTitle, setNewTitle] = useState(getDefaultRetroTitle);
   const [selectedTemplate, setSelectedTemplate] = useState<TemplateType>("WENT_WELL_TO_IMPROVE");
   const [maxVotes, setMaxVotes] = useState(5);
   const [isCreating, setIsCreating] = useState(false);
+
+  const isAdmin = role === "admin";
+  const effectiveUser: UserSession = isAdmin
+    ? { ...currentUser, name: "Admin", isFacilitator: true }
+    : currentUser;
 
   const handleOpenCreateModal = () => {
     setNewTitle(getDefaultRetroTitle());
@@ -159,7 +201,7 @@ export const App: React.FC = () => {
     document.documentElement.setAttribute("data-theme", theme);
   }, [theme]);
 
-  // Při návratu na záložku zkontrolujeme, zda už nenastal nový kalendářní den (expirace na konci dne)
+  // Při návratu na záložku zkontrolujeme denní expiraci anonymního zvířecího jména
   useEffect(() => {
     const handleVisibility = () => {
       if (document.visibilityState === "visible") {
@@ -174,10 +216,126 @@ export const App: React.FC = () => {
     };
   }, []);
 
-  const loadRetrospectives = async () => {
+  const handleUnauthorized = useCallback(async () => {
+    setAuthenticated(false);
+    setRole(null);
+    setActiveTeam(null);
+    setRetros([]);
+    setOpenActionItemsCount(0);
+    try {
+      const res = await fetch("/api/auth/me");
+      if (res.ok) {
+        const data = await res.json();
+        setLockedUntil(data.lockedUntil || null);
+      }
+    } catch {}
+  }, []);
+
+  // Úvodní ověření ?invite=<token> z URL nebo stávající cookie session (/api/auth/me)
+  useEffect(() => {
+    let cancelled = false;
+
+    const initAuth = async () => {
+      setAuthLoading(true);
+      let inviteError: string | null = null;
+
+      try {
+        const params = new URLSearchParams(window.location.search);
+        const inviteToken = params.get("invite");
+
+        if (inviteToken) {
+          const exchangeRes = await fetch("/api/auth/exchange-token", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ token: inviteToken }),
+          });
+          const exchangeData = await exchangeRes.json().catch(() => ({}));
+
+          if (!cancelled && exchangeRes.ok && exchangeData.authenticated) {
+            const nextHash = exchangeData.roomId
+              ? `#board/${exchangeData.roomId}`
+              : window.location.hash;
+            window.history.replaceState(null, "", window.location.pathname + nextHash);
+            if (exchangeData.roomId) {
+              setCurrentRoomId(exchangeData.roomId);
+            }
+            setAuthenticated(true);
+            setRole(exchangeData.role || "user");
+            setActiveTeam(exchangeData.activeTeam || null);
+            setLockedUntil(null);
+            setAuthError(null);
+            setAuthLoading(false);
+            return;
+          }
+
+          window.history.replaceState(null, "", window.location.pathname + window.location.hash);
+          inviteError =
+            exchangeData.error ||
+            "Sdílený odkaz je neplatný nebo již vypršel (platnost odkazu je 1 hodina).";
+        }
+
+        const meRes = await fetch("/api/auth/me");
+        const meData = await meRes.json().catch(() => ({}));
+        if (cancelled) return;
+
+        if (meRes.ok && meData.authenticated) {
+          setAuthenticated(true);
+          setRole(meData.role || "user");
+          setActiveTeam(meData.activeTeam || null);
+          setLockedUntil(null);
+          setAuthError(null);
+        } else {
+          setAuthenticated(false);
+          setRole(null);
+          setActiveTeam(null);
+          setLockedUntil(meData.lockedUntil || null);
+          setAuthError(inviteError);
+        }
+      } catch {
+        if (!cancelled) {
+          setAuthenticated(false);
+          setAuthError(inviteError || "Nepodařilo se ověřit přihlášení.");
+        }
+      } finally {
+        if (!cancelled) {
+          setAuthLoading(false);
+        }
+      }
+    };
+
+    initAuth();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const loadAdminTeams = useCallback(async () => {
+    setAdminTeamsLoading(true);
+    try {
+      const res = await fetch("/api/admin/teams");
+      if (res.status === 401) {
+        await handleUnauthorized();
+        return;
+      }
+      if (res.ok) {
+        const data = await res.json();
+        setAdminTeams(data.teams || []);
+      }
+    } catch (err) {
+      console.error("Chyba při načítání týmů:", err);
+    } finally {
+      setAdminTeamsLoading(false);
+    }
+  }, [handleUnauthorized]);
+
+  const loadRetrospectives = useCallback(async () => {
     setIsLoading(true);
     try {
       const res = await fetch("/api/retrospectives");
+      if (res.status === 401) {
+        await handleUnauthorized();
+        return;
+      }
       if (res.ok) {
         const data = await res.json();
         setRetros(data.retrospectives || []);
@@ -187,11 +345,15 @@ export const App: React.FC = () => {
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [handleUnauthorized]);
 
-  const loadActionItemsCount = async () => {
+  const loadActionItemsCount = useCallback(async () => {
     try {
       const res = await fetch("/api/action-items");
+      if (res.status === 401) {
+        await handleUnauthorized();
+        return;
+      }
       if (res.ok) {
         const data = await res.json();
         const open = (data.actionItems || []).filter(
@@ -200,12 +362,152 @@ export const App: React.FC = () => {
         setOpenActionItemsCount(open);
       }
     } catch {}
+  }, [handleUnauthorized]);
+
+  // Načtení dat podle přihlášené role a zvoleného týmu
+  useEffect(() => {
+    if (!authenticated) return;
+    if (role === "admin" && !activeTeam) {
+      loadAdminTeams();
+      return;
+    }
+    if (activeTeam) {
+      loadRetrospectives();
+      loadActionItemsCount();
+    }
+  }, [authenticated, role, activeTeam, loadAdminTeams, loadRetrospectives, loadActionItemsCount]);
+
+  // Pokud admin otevřel přímo URL s #board/<id> bez vybraného týmu, automaticky vybereme tým dané tabule
+  useEffect(() => {
+    if (!authenticated || role !== "admin" || !currentRoomId || activeTeam) return;
+    let cancelled = false;
+    setResolvingRoomTeam(true);
+
+    (async () => {
+      try {
+        const res = await fetch(`/api/retrospectives/${encodeURIComponent(currentRoomId)}`);
+        if (cancelled) return;
+        if (res.status === 401) {
+          await handleUnauthorized();
+          return;
+        }
+        if (res.status === 404 || res.status === 403 || !res.ok) {
+          if (window.location.hash) {
+            window.history.replaceState(null, "", window.location.pathname + window.location.search);
+          }
+          setCurrentRoomId(null);
+          return;
+        }
+        const data = await res.json();
+        const roomTeamId = data?.retrospective?.teamId;
+        if (roomTeamId) {
+          const selectRes = await fetch("/api/admin/select-team", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ teamId: roomTeamId }),
+          });
+          if (!cancelled && selectRes.ok) {
+            const selectData = await selectRes.json();
+            setActiveTeam(selectData.activeTeam || null);
+          }
+        }
+      } catch {} finally {
+        if (!cancelled) {
+          setResolvingRoomTeam(false);
+        }
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [authenticated, role, currentRoomId, activeTeam, handleUnauthorized]);
+
+  // Přesměrování z neexistující nebo cizí tabule na Home Page
+  useEffect(() => {
+    if (!authenticated || !currentRoomId || !activeTeam || isLoading) return;
+    const existsInList = retros.some((r) => r.id === currentRoomId);
+    if (!existsInList) {
+      let cancelled = false;
+      fetch(`/api/retrospectives/${encodeURIComponent(currentRoomId)}`)
+        .then(async (res) => {
+          if (cancelled) return;
+          if (res.status === 401) {
+            await handleUnauthorized();
+            return;
+          }
+          if (res.status === 404 || res.status === 403) {
+            if (window.location.hash) {
+              window.history.replaceState(
+                null,
+                "",
+                window.location.pathname + window.location.search
+              );
+            }
+            setCurrentRoomId(null);
+          }
+        })
+        .catch(() => {});
+      return () => {
+        cancelled = true;
+      };
+    }
+  }, [authenticated, currentRoomId, activeTeam, isLoading, retros, handleUnauthorized]);
+
+  const handleLogout = async () => {
+    try {
+      await fetch("/api/auth/logout", { method: "POST" });
+    } catch {}
+    if (window.location.hash) {
+      window.history.replaceState(null, "", window.location.pathname + window.location.search);
+    }
+    setCurrentRoomId(null);
+    setAuthenticated(false);
+    setRole(null);
+    setActiveTeam(null);
+    setRetros([]);
+    setAdminTeams([]);
+    setOpenActionItemsCount(0);
+    setAuthError(null);
   };
 
-  useEffect(() => {
-    loadRetrospectives();
-    loadActionItemsCount();
-  }, []);
+  const handleAdminSelectTeam = async (team: Team) => {
+    try {
+      const res = await fetch("/api/admin/select-team", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ teamId: team.id }),
+      });
+      if (res.status === 401) {
+        await handleUnauthorized();
+        return;
+      }
+      if (res.ok) {
+        const data = await res.json();
+        setActiveTeam(data.activeTeam || team);
+      }
+    } catch (err) {
+      console.error("Chyba při výběru týmu:", err);
+    }
+  };
+
+  const handleAdminBackToTeams = async () => {
+    try {
+      await fetch("/api/admin/select-team", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ teamId: null }),
+      });
+    } catch {}
+    if (window.location.hash) {
+      window.history.replaceState(null, "", window.location.pathname + window.location.search);
+    }
+    setCurrentRoomId(null);
+    setActiveTeam(null);
+    setRetros([]);
+    setOpenActionItemsCount(0);
+    loadAdminTeams();
+  };
 
   const handleCreateRetro = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -223,18 +525,44 @@ export const App: React.FC = () => {
         }),
       });
 
+      if (res.status === 401) {
+        await handleUnauthorized();
+        return;
+      }
+
       if (res.ok) {
         const created = await res.json();
         setNewTitle(getDefaultRetroTitle());
         setIsModalOpen(false);
         await loadRetrospectives();
-        // Přepnout přímo do místnosti
         window.location.hash = `#board/${created.id}`;
       }
     } catch (err) {
       alert("Chyba při zakládání retrospektivy: " + err);
     } finally {
       setIsCreating(false);
+    }
+  };
+
+  const handleDeleteRetroConfirm = async () => {
+    if (!retroToDelete || isDeletingRetro) return;
+    setIsDeletingRetro(true);
+    try {
+      const res = await fetch(`/api/retrospectives/${retroToDelete.id}`, {
+        method: "DELETE",
+      });
+      if (res.status === 401) {
+        await handleUnauthorized();
+        return;
+      }
+      if (res.ok) {
+        setRetroToDelete(null);
+        await loadRetrospectives();
+      }
+    } catch (err) {
+      console.error("Chyba při mazání retrospektivy:", err);
+    } finally {
+      setIsDeletingRetro(false);
     }
   };
 
@@ -251,35 +579,11 @@ export const App: React.FC = () => {
       window.history.replaceState(null, "", window.location.pathname + window.location.search);
     }
     setCurrentRoomId(null);
-    loadRetrospectives();
-    loadActionItemsCount();
-  };
-
-  // Pokud uživatel otevřel URL s #board/<id>, která v načteném seznamu retrospektiv neexistuje, přesměrujeme ho na Home Page
-  useEffect(() => {
-    if (!currentRoomId || isLoading) return;
-    const existsInList = retros.some((r) => r.id === currentRoomId);
-    if (!existsInList) {
-      let cancelled = false;
-      fetch(`/api/retrospectives/${encodeURIComponent(currentRoomId)}`)
-        .then((res) => {
-          if (!cancelled && res.status === 404) {
-            if (window.location.hash) {
-              window.history.replaceState(
-                null,
-                "",
-                window.location.pathname + window.location.search
-              );
-            }
-            setCurrentRoomId(null);
-          }
-        })
-        .catch(() => {});
-      return () => {
-        cancelled = true;
-      };
+    if (activeTeam) {
+      loadRetrospectives();
+      loadActionItemsCount();
     }
-  }, [currentRoomId, isLoading, retros]);
+  };
 
   const animalGalleryModal = (
     <AnimalGalleryModal
@@ -299,8 +603,71 @@ export const App: React.FC = () => {
     />
   );
 
-  // Pokud je v URL vybrána konkrétní místnost, zobrazíme real-time BoardView
+  // 1. Načítání ověření přístupu
+  if (authLoading) {
+    return (
+      <div
+        style={{
+          minHeight: "100vh",
+          display: "flex",
+          flexDirection: "column",
+          alignItems: "center",
+          justifyContent: "center",
+          gap: "16px",
+        }}
+      >
+        <div
+          style={{
+            width: "44px",
+            height: "44px",
+            borderRadius: "50%",
+            border: "4px solid rgba(99, 102, 241, 0.2)",
+            borderTopColor: "var(--accent-indigo)",
+          }}
+        />
+        <p style={{ color: "var(--text-muted)", fontSize: "0.95rem" }}>Ověřuji přístup...</p>
+      </div>
+    );
+  }
+
+  // 2. Přihlašovací obrazovka (bez nápovědy k heslu, s ochranou 3 pokusy / 24h)
+  if (!authenticated) {
+    return (
+      <LoginView
+        theme={theme}
+        onToggleTheme={toggleTheme}
+        initialLockedUntil={lockedUntil}
+        initialError={authError}
+        onLoginSuccess={({ role: nextRole, activeTeam: nextTeam }) => {
+          setAuthenticated(true);
+          setRole(nextRole);
+          setActiveTeam(nextTeam);
+          setLockedUntil(null);
+          setAuthError(null);
+        }}
+      />
+    );
+  }
+
+  // 3. Real-time detail retrospektivy (#board/<id>)
   if (currentRoomId) {
+    if (isAdmin && (!activeTeam || resolvingRoomTeam)) {
+      return (
+        <div
+          style={{
+            minHeight: "100vh",
+            display: "flex",
+            flexDirection: "column",
+            alignItems: "center",
+            justifyContent: "center",
+            gap: "12px",
+          }}
+        >
+          <p style={{ color: "var(--text-muted)" }}>Načítám kontext týmu...</p>
+        </div>
+      );
+    }
+
     return (
       <div style={{ minHeight: "100vh", display: "flex", flexDirection: "column" }}>
         {/* Global Small Header */}
@@ -312,36 +679,57 @@ export const App: React.FC = () => {
             justifyContent: "space-between",
             alignItems: "center",
             background: "var(--bg-secondary)",
+            flexWrap: "wrap",
+            gap: "10px",
           }}
         >
-          <div
-            onClick={handleBackToDashboard}
-            style={{ display: "flex", alignItems: "center", gap: "10px", cursor: "pointer" }}
-          >
+          <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
             <div
-              style={{
-                width: "28px",
-                height: "28px",
-                borderRadius: "8px",
-                background: "linear-gradient(135deg, var(--accent-indigo), var(--accent-cyan))",
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                color: "#fff",
-                fontWeight: 800,
-                fontSize: "0.8rem",
-              }}
+              onClick={handleBackToDashboard}
+              style={{ display: "flex", alignItems: "center", gap: "10px", cursor: "pointer" }}
             >
-              CI
+              <div
+                style={{
+                  width: "28px",
+                  height: "28px",
+                  borderRadius: "8px",
+                  background: "linear-gradient(135deg, var(--accent-indigo), var(--accent-cyan))",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  color: "#fff",
+                  fontWeight: 800,
+                  fontSize: "0.8rem",
+                }}
+              >
+                R
+              </div>
+              <span style={{ fontSize: "0.95rem", fontWeight: 800, letterSpacing: "-0.02em" }}>
+                Retrospektiva
+              </span>
             </div>
-            <span style={{ fontSize: "0.95rem", fontWeight: 800, letterSpacing: "-0.02em" }}>
-              CI Retrospective
-            </span>
+
+            {activeTeam && (
+              <span
+                style={{
+                  padding: "2px 9px",
+                  borderRadius: "var(--radius-full)",
+                  background: "rgba(99, 102, 241, 0.12)",
+                  border: "1px solid rgba(99, 102, 241, 0.3)",
+                  color: "var(--accent-indigo)",
+                  fontSize: "0.74rem",
+                  fontWeight: 700,
+                }}
+              >
+                {activeTeam.name}
+              </span>
+            )}
           </div>
 
           <div style={{ display: "flex", alignItems: "center", gap: "12px", flexWrap: "wrap" }}>
             <span style={{ fontSize: "0.8rem", color: "var(--text-muted)" }}>
-              Jste přihlášen jako: <strong>{currentUser.name}</strong>
+              Jste přihlášen jako:{" "}
+              <strong>{isAdmin ? "Admin" : currentUser.name}</strong>
             </span>
             <button
               type="button"
@@ -380,17 +768,42 @@ export const App: React.FC = () => {
             >
               {theme === "dark" ? <Sun size={14} /> : <Moon size={14} />}
             </button>
+            <button
+              type="button"
+              onClick={handleLogout}
+              title="Odhlásit se"
+              style={{
+                padding: "6px 10px",
+                borderRadius: "var(--radius-sm)",
+                background: "rgba(244, 63, 94, 0.08)",
+                color: "var(--accent-rose)",
+                display: "flex",
+                alignItems: "center",
+                gap: "5px",
+                fontSize: "0.78rem",
+                fontWeight: 600,
+                border: "1px solid rgba(244, 63, 94, 0.3)",
+              }}
+            >
+              <LogOut size={13} />
+              <span>Odhlásit</span>
+            </button>
           </div>
         </header>
 
         <BoardView
           roomId={currentRoomId}
-          user={currentUser}
+          user={effectiveUser}
+          teamName={activeTeam?.name}
+          isAdmin={isAdmin}
           onBack={handleBackToDashboard}
           onUpdateUser={(updated) => {
-            setCurrentUser(updated);
-            saveDailyUserSession(updated);
+            if (!isAdmin) {
+              setCurrentUser(updated);
+              saveDailyUserSession(updated);
+            }
           }}
+          onUnauthorized={handleUnauthorized}
         />
 
         {animalGalleryModal}
@@ -398,7 +811,31 @@ export const App: React.FC = () => {
     );
   }
 
-  // Dashboard View
+  // 4. Admin správa týmů a squadů (když admin nemá vybraný konkrétní tým)
+  if (isAdmin && !activeTeam) {
+    return (
+      <>
+        <AdminTeamsView
+          teams={adminTeams}
+          isLoading={adminTeamsLoading}
+          theme={theme}
+          onToggleTheme={toggleTheme}
+          onLogout={handleLogout}
+          onRefresh={loadAdminTeams}
+          onSelectTeam={handleAdminSelectTeam}
+          onShareTeam={(team) => setShareTargetTeam(team)}
+        />
+        <ShareModal
+          isOpen={Boolean(shareTargetTeam)}
+          onClose={() => setShareTargetTeam(null)}
+          teamId={shareTargetTeam?.id}
+          teamName={shareTargetTeam?.name}
+        />
+      </>
+    );
+  }
+
+  // 5. Team Dashboard (Home Page týmu)
   return (
     <div style={{ minHeight: "100vh", display: "flex", flexDirection: "column" }}>
       {/* Top Navbar */}
@@ -410,6 +847,8 @@ export const App: React.FC = () => {
           justifyContent: "space-between",
           alignItems: "center",
           background: "var(--bg-secondary)",
+          flexWrap: "wrap",
+          gap: "12px",
         }}
       >
         <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
@@ -426,42 +865,85 @@ export const App: React.FC = () => {
               fontWeight: 800,
             }}
           >
-            CI
+            R
           </div>
           <div>
             <h1 style={{ fontSize: "1.1rem", fontWeight: 700, margin: 0, letterSpacing: "-0.02em" }}>
-              CI Retrospective
+              Retrospektiva
             </h1>
             <span style={{ fontSize: "0.75rem", color: "var(--text-muted)" }}>
-              Cloudflare Native Edge Architecture
+              {activeTeam ? `Tým: ${activeTeam.name}` : "Zabezpečený týmový prostor"}
             </span>
           </div>
         </div>
 
-        <div style={{ display: "flex", alignItems: "center", gap: "12px", flexWrap: "wrap" }}>
-          <button
-            type="button"
-            onClick={() => setIsAnimalGalleryOpen(true)}
-            title="Klikněte pro zobrazení vašeho zvířátka v Digitální zoo"
-            style={{
-              display: "flex",
-              alignItems: "center",
-              gap: "8px",
-              fontSize: "0.82rem",
-              fontWeight: 600,
-              padding: "6px 14px",
-              borderRadius: "var(--radius-full)",
-              background: "var(--bg-card)",
-              border: "1px solid var(--border-color)",
-              color: "var(--text-main)",
-              cursor: "pointer",
-            }}
-          >
-            <span style={{ fontSize: "1rem", lineHeight: 1 }}>
-              {getAnimalVisualInfo(currentUser.name).emoji}
+        <div style={{ display: "flex", alignItems: "center", gap: "10px", flexWrap: "wrap" }}>
+          {isAdmin && (
+            <button
+              type="button"
+              onClick={handleAdminBackToTeams}
+              title="Zpět na správu týmů"
+              style={{
+                padding: "8px 12px",
+                borderRadius: "var(--radius-md)",
+                background: "var(--bg-card)",
+                color: "var(--text-main)",
+                display: "flex",
+                alignItems: "center",
+                gap: "6px",
+                fontSize: "0.84rem",
+                fontWeight: 600,
+                border: "1px solid var(--border-color)",
+              }}
+            >
+              <ArrowLeft size={15} />
+              <span>Správa týmů</span>
+            </button>
+          )}
+
+          {isAdmin ? (
+            <span
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: "6px",
+                fontSize: "0.82rem",
+                fontWeight: 700,
+                padding: "6px 14px",
+                borderRadius: "var(--radius-full)",
+                background: "rgba(99, 102, 241, 0.14)",
+                border: "1px solid rgba(99, 102, 241, 0.35)",
+                color: "var(--accent-indigo)",
+              }}
+            >
+              <Shield size={14} />
+              <span>Admin</span>
             </span>
-            <span>{currentUser.name}</span>
-          </button>
+          ) : (
+            <button
+              type="button"
+              onClick={() => setIsAnimalGalleryOpen(true)}
+              title="Klikněte pro zobrazení vašeho zvířátka v Digitální zoo"
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: "8px",
+                fontSize: "0.82rem",
+                fontWeight: 600,
+                padding: "6px 14px",
+                borderRadius: "var(--radius-full)",
+                background: "var(--bg-card)",
+                border: "1px solid var(--border-color)",
+                color: "var(--text-main)",
+                cursor: "pointer",
+              }}
+            >
+              <span style={{ fontSize: "1rem", lineHeight: 1 }}>
+                {getAnimalVisualInfo(currentUser.name).emoji}
+              </span>
+              <span>{currentUser.name}</span>
+            </button>
+          )}
 
           <button
             type="button"
@@ -485,6 +967,29 @@ export const App: React.FC = () => {
             <span>Digitální zoo</span>
           </button>
 
+          {activeTeam && (
+            <button
+              type="button"
+              onClick={() => setIsDashboardShareOpen(true)}
+              title="Zkopírovat zabezpečený 1h odkaz a zobrazit QR kód pro tento tým"
+              style={{
+                padding: "8px 14px",
+                borderRadius: "var(--radius-md)",
+                background: "var(--accent-indigo)",
+                color: "#ffffff",
+                display: "flex",
+                alignItems: "center",
+                gap: "6px",
+                fontSize: "0.85rem",
+                fontWeight: 700,
+                cursor: "pointer",
+              }}
+            >
+              <Share2 size={15} />
+              <span>Sdílet</span>
+            </button>
+          )}
+
           <button
             onClick={toggleTheme}
             style={{
@@ -505,7 +1010,7 @@ export const App: React.FC = () => {
 
           <button
             onClick={() => setIsTasksModalOpen(true)}
-            title="Otevřít globální akční kroky"
+            title="Otevřít týmové akční kroky"
             style={{
               padding: "8px 14px",
               borderRadius: "var(--radius-md)",
@@ -559,6 +1064,27 @@ export const App: React.FC = () => {
             <Bug size={15} />
             <span>Nahlásit chybu</span>
           </button>
+
+          <button
+            type="button"
+            onClick={handleLogout}
+            title="Odhlásit se"
+            style={{
+              padding: "8px 12px",
+              borderRadius: "var(--radius-md)",
+              background: "var(--bg-card)",
+              color: "var(--text-muted)",
+              display: "flex",
+              alignItems: "center",
+              gap: "6px",
+              fontSize: "0.85rem",
+              fontWeight: 600,
+              border: "1px solid var(--border-color)",
+            }}
+          >
+            <LogOut size={15} />
+            <span>Odhlásit</span>
+          </button>
         </div>
       </header>
 
@@ -593,14 +1119,14 @@ export const App: React.FC = () => {
                 marginBottom: "10px",
               }}
             >
-              <Sparkles size={14} /> Real-time kolaborace přes Cloudflare Edge
+              <Sparkles size={14} /> {activeTeam ? `Squad / Tým: ${activeTeam.name}` : "Real-time kolaborace"}
             </div>
             <h2 style={{ fontSize: "2rem", fontWeight: 800, letterSpacing: "-0.03em", marginBottom: "8px" }}>
               Agilní retrospektivy bez hranic
             </h2>
             <p style={{ color: "var(--text-muted)", fontSize: "1rem", maxWidth: "560px" }}>
-              Blesková synchronizace přes Cloudflare Durable Objects s podporou atomického hlasování,
-              seskupování myšlenek a společného odpočtu času.
+              Blesková synchronizace v reálném čase s podporou atomického hlasování,
+              seskupování myšlenek, sdílených odkazů na 1 hodinu a společného odpočtu času.
             </p>
           </div>
 
@@ -650,7 +1176,7 @@ export const App: React.FC = () => {
 
           {isLoading ? (
             <p style={{ color: "var(--text-muted)", textAlign: "center", padding: "40px 0" }}>
-              Načítám retrospektivy z Cloudflare D1 databáze...
+              Načítám retrospektivy z databáze...
             </p>
           ) : retros.length > 0 ? (
             <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(340px, 1fr))", gap: "20px" }}>
@@ -670,8 +1196,28 @@ export const App: React.FC = () => {
                   onMouseEnter={(e) => (e.currentTarget.style.borderColor = "var(--border-active)")}
                   onMouseLeave={(e) => (e.currentTarget.style.borderColor = "var(--border-color)")}
                 >
-                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: "8px" }}>
                     <h4 style={{ fontSize: "1.1rem", fontWeight: 700, margin: 0 }}>{r.title}</h4>
+                    {isAdmin && (
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setRetroToDelete(r);
+                        }}
+                        title="Smazat retrospektivu"
+                        style={{
+                          background: "transparent",
+                          color: "var(--text-dim)",
+                          padding: "4px",
+                          borderRadius: "var(--radius-sm)",
+                          display: "flex",
+                          alignItems: "center",
+                        }}
+                      >
+                        <Trash2 size={15} />
+                      </button>
+                    )}
                   </div>
 
                   <p style={{ fontSize: "0.82rem", color: "var(--text-muted)", margin: 0 }}>
@@ -881,11 +1427,86 @@ export const App: React.FC = () => {
         </div>
       )}
 
+      {/* Modal potvrzení smazání retrospektivy (pouze Admin) */}
+      {retroToDelete && (
+        <div
+          style={{
+            position: "fixed",
+            inset: 0,
+            background: "rgba(0, 0, 0, 0.7)",
+            backdropFilter: "blur(6px)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            padding: "20px",
+            zIndex: 200,
+          }}
+        >
+          <div
+            className="glass-panel"
+            style={{
+              width: "100%",
+              maxWidth: "440px",
+              padding: "26px",
+              background: "var(--bg-secondary)",
+              border: "1px solid rgba(244, 63, 94, 0.35)",
+            }}
+          >
+            <div style={{ display: "flex", alignItems: "center", gap: "10px", marginBottom: "12px" }}>
+              <AlertTriangle size={20} color="var(--accent-rose)" />
+              <h3 style={{ fontSize: "1.1rem", fontWeight: 800, margin: 0 }}>
+                Smazat retrospektivu?
+              </h3>
+            </div>
+            <p style={{ color: "var(--text-muted)", fontSize: "0.9rem", lineHeight: 1.5, marginBottom: "18px" }}>
+              Opravdu chcete trvale odstranit retrospektivu <strong>{retroToDelete.title}</strong> včetně všech jejích karet a hlasů?
+            </p>
+            <div style={{ display: "flex", justifyContent: "flex-end", gap: "10px" }}>
+              <button
+                type="button"
+                onClick={() => setRetroToDelete(null)}
+                style={{
+                  padding: "8px 14px",
+                  borderRadius: "var(--radius-sm)",
+                  background: "transparent",
+                  color: "var(--text-muted)",
+                  fontWeight: 600,
+                }}
+              >
+                Zrušit
+              </button>
+              <button
+                type="button"
+                onClick={handleDeleteRetroConfirm}
+                disabled={isDeletingRetro}
+                style={{
+                  padding: "8px 16px",
+                  borderRadius: "var(--radius-sm)",
+                  background: "var(--accent-rose)",
+                  color: "#ffffff",
+                  fontWeight: 700,
+                }}
+              >
+                {isDeletingRetro ? "Mažu..." : "Smazat"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Share Modal pro aktivní tým (1h token + QR + auto-copy) */}
+      <ShareModal
+        isOpen={isDashboardShareOpen}
+        onClose={() => setIsDashboardShareOpen(false)}
+        teamId={activeTeam?.id}
+        teamName={activeTeam?.name}
+      />
+
       {/* Bug Report Modal */}
       <BugReportModal
         isOpen={isBugReportOpen}
         onClose={() => setIsBugReportOpen(false)}
-        currentUser={currentUser}
+        currentUser={effectiveUser}
       />
 
       {/* Global Action Items Checklist Modal */}

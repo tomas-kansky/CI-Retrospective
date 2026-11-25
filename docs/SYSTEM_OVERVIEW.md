@@ -1,20 +1,21 @@
 # Systémový přehled a architektura (High-Level Documentation)
 
-> **Pro nově příchozí vývojáře a AI agenty:** Tento dokument slouží jako rychlý průvodce architekturou, strukturou monorepa a klíčovými koncepty projektu **CI Retrospective**. Přečtení tohoto dokumentu vám umožní okamžitě se zorientovat v celém kódu bez nutnosti procházet desítky souborů.
+> **Pro nově příchozí vývojáře a AI agenty:** Tento dokument slouží jako rychlý průvodce architekturou, strukturou monorepa a klíčovými koncepty projektu **Retrospektiva** (původně *CI Retrospective*). Přečtení tohoto dokumentu vám umožní okamžitě se zorientovat v celém kódu bez nutnosti procházet desítky souborů.
 
 ---
 
-## 1. Co je CI Retrospective?
+## 1. Co je Retrospektiva?
 
-**CI Retrospective** je moderní, rychlá a kolaborativní webová aplikace pro agilní týmové retrospektivy (alternativa k nástrojům jako EasyRetro nebo Miro). 
+**Retrospektiva** je moderní, rychlá a kolaborativní webová aplikace pro agilní týmové retrospektivy více týmů / squadů (alternativa k nástrojům jako EasyRetro nebo Miro) postavená na Cloudflare Edge.
 
 ### Hlavní přednosti:
-- **Nulová latence**: Okamžitá synchronizace přes WebSockets a Cloudflare Durable Objects.
+- **Dvouúrovňové zabezpečení & Multi-tenancy (`admin` / `user`)**: Přihlášení heslem ověřovaným přes **PBKDF2-SHA256** (60 000 iterací) a podepsanou `HttpOnly` cookie (`HMAC-SHA256`). Jediné heslo slouží jak k přihlášení `admina` (správa týmů/squadů v `AdminTeamsView.tsx`, možnost zakládat, přejmenovávat, mazat týmy, měnit hesla a vstupovat do jejich tabulí), tak k rozřazení běžných uživatelů přímo do příslušného týmu s izolovaným úložištěm v D1 (`team_id`; výchozí tým **Client Interactions**). Po **3 neúspěšných pokusech** je zařízení/IP zablokováno na **24 hodin** (`login_attempts` v D1).
+- **1hodinové sdílecí tokeny & QR kód (`ShareModal.tsx`)**: Po kliknutí na tlačítko *Sdílet* server vygeneruje kryptografický token v tabulce `share_tokens` s platností **1 hodinu (`H+1`)**, automaticky zkopíruje URL s `?invite=<token>` do schránky a vygeneruje QR kód pro přímý vstup do týmu (nebo konkrétní retrospektivy) bez zadání hesla. Po výměně tokenu přes `POST /api/auth/exchange-token` zůstává uživatel přihlášen na aktivní relaci a `?invite=...` se z URL smaže.
+- **Nulová latence & Ochrana WebSocketů**: Okamžitá synchronizace přes WebSockets a Cloudflare Durable Objects (`RetroRoom`). Před vstupem do Durable Objectu (`/api/room/:roomId`) Worker ověřuje `HttpOnly` session cookie a příslušnost místnosti ke správnému týmu.
 - **Čisté a přímočaré rozhraní**: Všechny karty (s limitem max. 255 znaků, počítadlem délky a možností inline úpravy či smazání karty výhradně jejím autorem) jsou ihned viditelné v reálném čase bez zdržování přepínáním fází či odmaskováváním. Při zakládání tabule jsou v picklistu *Šablona sloupců* dostupné dvě šablony: výchozí *Went Well / To Improve / Action Items* (`WENT_WELL_TO_IMPROVE`) a `PUB_RETRO` (*🍺 Na co si připijeme / 🤬 Zapičuj si / 🛠️ Jak to příště neposrat*), jejíž 3. sloupec podporuje přenos karet do globálních Akčních kroků.
 - **Hierarchické seskupování karet**: Přetažením karty na jinou kartu vzniká skupina myšlenek (`parentCardId`).
-- **Anonymní zvířata & Digitální zoo**: Přátelské a vtipné generování jmen ve stylu Google Docs (např. *Anonymní Medojed*, *Anonymní Kapybara*, *Anonymní Axolotl*) doplněné o **Digitální zoo** (`AnimalGalleryModal.tsx`) dostupnou přes tlačítko `🐾 Digitální zoo` jak na úvodní obrazovce (Dashboard v `App.tsx`), tak v horní liště otevřené tabule vedle nápisu *„Jste přihlášen jako: ...“*. Po rozkliknutí uživatel ihned vidí velkou reálnou fotografii svého přiřazeného zvířete z přírody, jeho latinský název i zajímavost, a může procházet či vyhledávat reálné fotky všech 44 zvířátek v aplikaci. Profil (`id`, hlasy, autorství karet i jméno) je provázán s prohlížečem do konce kalendářního dne (`23:59:59`), takže přežije F5 refresh stránky, ale další den či týden se automaticky obnoví.
-- **Časovač & Globální Akční kroky**: Synchronizovaný odpočet s předvolbami i vlastním časem, sjednocená správa globálních Akčních kroků napříč všemi boards (jak v bočním panelu na tabuli, tak na hlavní stránce) se záložkami *Vše*, *K vyřešení* (výchozí) a *Hotovo*, tlačítkem *Mark as Done* a přenosem karet z tabule.
-- **Sdílení s QR kódem**: Rychlé pozvání účastníků do místnosti přes generovaný QR kód i přímý URL odkaz s možností stažení PNG.
+- **Anonymní zvířata & Digitální zoo**: Běžní uživatelé jsou nadále označeni jako *Anonymní <Zvíře>* (např. *Anonymní Medojed*, *Anonymní Kapybara*, *Anonymní Axolotl*), zatímco administrátor vystupuje pod označením `Admin`. Doplněno o **Digitální zoo** (`AnimalGalleryModal.tsx`) dostupnou přes tlačítko `🐾 Digitální zoo` jak na úvodní obrazovce týmu, tak v horní liště otevřené tabule.
+- **Časovač & Izolované týmové Akční kroky**: Synchronizovaný odpočet s předvolbami i vlastním časem, správa Akčních kroků izolovaných pro každý tým (`team_id` v `action_items`) se záložkami *Vše*, *K vyřešení* (výchozí), *Hotovo* a *Zrušeno*, tlačítkem *Mark as Done*, rozbalovacími akcemi *Cancel*/*Delete* a přenosem karet z tabule.
 - **Serverless Edge architektura**: 100% běh na Cloudflare ekosystému (Workers, Durable Objects, D1 SQLite).
 
 ---
@@ -29,17 +30,19 @@ CI Retrospective/
 │   ├── web/                      # Frontend (Vite + React SPA)
 │   │   ├── src/
 │   │   │   ├── components/
+│   │   │   │   ├── LoginView.tsx         # Přihlašovací obrazovka s ochranou proti 3 chybným pokusům (24h lockout)
+│   │   │   │   ├── AdminTeamsView.tsx    # Admin rozhraní pro správu týmů / squadů (CRUD + hesla)
 │   │   │   │   ├── BoardView.tsx         # Hlavní plocha retrospektivy, sloupce, karty, DnD, řazení dle hlasů
 │   │   │   │   ├── ActionItemsDrawer.tsx # Postranní panel akčních kroků (úkolů)
 │   │   │   │   ├── AnimalGalleryModal.tsx # Digitální zoo (fotogalerie reálných zvířátek z přírody)
-│   │   │   │   ├── ShareModal.tsx        # Dialog sdílení s URL, tlačítkem kopírování a QR kódem
+│   │   │   │   ├── ShareModal.tsx        # Dialog sdílení s 1h tokenem, auto-copy URL a QR kódem
 │   │   │   │   ├── BugReportModal.tsx    # Hlášení chyb a zpětné vazby z UI přímo do databáze
-│   │   │   │   └── GlobalActionItemsModal.tsx # Centrální úkolovník / checklist ze všech retrospektiv
+│   │   │   │   └── GlobalActionItemsModal.tsx # Týmový úkolovník / checklist napříč tabulemi týmu
 │   │   │   ├── hooks/
 │   │   │   │   └── useRetroRoom.ts       # Klíčový WebSocket hook pro synchronizaci tabule
 │   │   │   ├── utils/
 │   │   │   │   └── names.ts              # Generátor náhodných zvířat ve stylu Google Docs
-│   │   │   ├── App.tsx                   # Dashboard, seznam retrospektiv, tvorba nových
+│   │   │   ├── App.tsx                   # Routing dle role/týmu, týmový Dashboard, tvorba retrospektiv
 │   │   │   ├── index.css                 # Globální CSS proměnné a design systém (Tailwind-free)
 │   │   │   └── main.tsx                  # Vstupní bod React aplikace
 │   │   └── package.json
@@ -47,10 +50,11 @@ CI Retrospective/
 │   └── server/                   # Backend (Cloudflare Workers + Durable Objects + D1)
 │       ├── src/
 │       │   ├── db/
-│       │   │   ├── schema.ts             # Drizzle ORM schéma pro SQLite (D1)
-│       │   │   └── index.ts              # Drizzle klient a automatický init tabulek
+│       │   │   ├── schema.ts             # Drizzle ORM schéma pro SQLite (D1 vč. teams, share_tokens, login_attempts)
+│       │   │   └── index.ts              # Drizzle klient, automatické migrace a seed výchozího týmu/admina
+│       │   ├── auth.ts                   # PBKDF2-SHA256 hesla, HMAC-SHA256 cookies, lockout 3 pokusy / 24h
 │       │   ├── room.ts                   # Třída RetroRoom (Durable Object pro WebSockets a stav)
-│       │   └── index.ts                  # Hono REST API server (routy pro retrospektivy)
+│       │   └── index.ts                  # Chráněný Hono REST API server + autorizovaný proxy do RetroRoom DO
 │       ├── wrangler.jsonc                # Konfigurace Cloudflare Workers a D1 bindings
 │       └── package.json
 │
@@ -135,13 +139,16 @@ Každá retrospektiva prochází těmito fázemi (`RetroPhase`):
 
 | Potřebuji upravit... | Hledej v souboru: |
 |---|---|
+| **Přihlášení a lockout po 3 pokusech** | [`apps/web/src/components/LoginView.tsx`](file:///c:/Users/tomat/Documents/Programming%20Projects/CI%20Retrospective/apps/web/src/components/LoginView.tsx) a [`apps/server/src/auth.ts`](file:///c:/Users/tomat/Documents/Programming%20Projects/CI%20Retrospective/apps/server/src/auth.ts) |
+| **Admin rozhraní správy týmů / squadů** | [`apps/web/src/components/AdminTeamsView.tsx`](file:///c:/Users/tomat/Documents/Programming%20Projects/CI%20Retrospective/apps/web/src/components/AdminTeamsView.tsx) (`/api/admin/teams`) |
+| **1h sdílecí tokeny a QR kód** | [`apps/web/src/components/ShareModal.tsx`](file:///c:/Users/tomat/Documents/Programming%20Projects/CI%20Retrospective/apps/web/src/components/ShareModal.tsx) (`POST /api/share-tokens`, `POST /api/auth/exchange-token`) |
 | **Vzhled karet, sloupců, tlačítek na tabuli** | [`apps/web/src/components/BoardView.tsx`](file:///c:/Users/tomat/Documents/Programming%20Projects/CI%20Retrospective/apps/web/src/components/BoardView.tsx) |
 | **Přetahování karet (Drag & Drop, mobilní dotyk, slučování)** | `MouseSensor`, `TouchSensor`, `customCollisionDetection`, `handleDragEnd` v [BoardView.tsx](file:///c:/Users/tomat/Documents/Programming%20Projects/CI%20Retrospective/apps/web/src/components/BoardView.tsx#L445-L540) |
 | **Klientskou WebSocket logiku, reconnect, akce** | [`apps/web/src/hooks/useRetroRoom.ts`](file:///c:/Users/tomat/Documents/Programming%20Projects/CI%20Retrospective/apps/web/src/hooks/useRetroRoom.ts) |
-| **Serverovou logiku místnosti, herní pravidla, blur** | [`apps/server/src/room.ts`](file:///c:/Users/tomat/Documents/Programming%20Projects/CI%20Retrospective/apps/server/src/room.ts) |
-| **REST endpointy, retrospektivy, globální úkoly, tickety** | [`apps/server/src/index.ts`](file:///c:/Users/tomat/Documents/Programming%20Projects/CI%20Retrospective/apps/server/src/index.ts) (`GET/POST /api/action-items`, `PATCH/DELETE /api/action-items/:id`) |
-| **Globální Akční kroky (Modal & Boční panel se záložkami Vše / K vyřešení / Hotovo / Zrušeno, Mark as Done + Cancel/Delete)** | [`apps/web/src/components/GlobalActionItemsModal.tsx`](file:///c:/Users/tomat/Documents/Programming%20Projects/CI%20Retrospective/apps/web/src/components/GlobalActionItemsModal.tsx), [`apps/web/src/components/ActionItemsDrawer.tsx`](file:///c:/Users/tomat/Documents/Programming%20Projects/CI%20Retrospective/apps/web/src/components/ActionItemsDrawer.tsx) |
-| **Strukturu tabulek v databázi (D1)** | [`apps/server/src/db/schema.ts`](file:///c:/Users/tomat/Documents/Programming%20Projects/CI%20Retrospective/apps/server/src/db/schema.ts) |
+| **Serverovou logiku místnosti, herní pravidla** | [`apps/server/src/room.ts`](file:///c:/Users/tomat/Documents/Programming%20Projects/CI%20Retrospective/apps/server/src/room.ts) |
+| **REST endpointy, autentizaci, izolaci týmů, úkoly, tickety** | [`apps/server/src/index.ts`](file:///c:/Users/tomat/Documents/Programming%20Projects/CI%20Retrospective/apps/server/src/index.ts) |
+| **Týmové Akční kroky (Modal & Boční panel se záložkami Vše / K vyřešení / Hotovo / Zrušeno, Mark as Done + Cancel/Delete)** | [`apps/web/src/components/GlobalActionItemsModal.tsx`](file:///c:/Users/tomat/Documents/Programming%20Projects/CI%20Retrospective/apps/web/src/components/GlobalActionItemsModal.tsx), [`apps/web/src/components/ActionItemsDrawer.tsx`](file:///c:/Users/tomat/Documents/Programming%20Projects/CI%20Retrospective/apps/web/src/components/ActionItemsDrawer.tsx) |
+| **Strukturu tabulek v databázi (D1)** | [`apps/server/src/db/schema.ts`](file:///c:/Users/tomat/Documents/Programming%20Projects/CI%20Retrospective/apps/server/src/db/schema.ts) a [`apps/server/src/db/index.ts`](file:///c:/Users/tomat/Documents/Programming%20Projects/CI%20Retrospective/apps/server/src/db/index.ts) |
 | **Sdílené typy zpráv a entit** | [`packages/types/src/index.ts`](file:///c:/Users/tomat/Documents/Programming%20Projects/CI%20Retrospective/packages/types/src/index.ts) |
 | **Generování jmen (anonymní zvířata)** | [`apps/web/src/utils/names.ts`](file:///c:/Users/tomat/Documents/Programming%20Projects/CI%20Retrospective/apps/web/src/utils/names.ts) |
 | **Styling, barvy, CSS proměnné** | [`apps/web/src/index.css`](file:///c:/Users/tomat/Documents/Programming%20Projects/CI%20Retrospective/apps/web/src/index.css) |

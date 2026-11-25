@@ -10,9 +10,10 @@ import type {
 export interface UseRetroRoomOptions {
   roomId: string;
   user: UserSession;
+  onUnauthorized?: () => void;
 }
 
-export function useRetroRoom({ roomId, user }: UseRetroRoomOptions) {
+export function useRetroRoom({ roomId, user, onUnauthorized }: UseRetroRoomOptions) {
   const [state, setState] = useState<RetrospectiveState | null>(null);
   const [onlineUsers, setOnlineUsers] = useState<UserSession[]>([]);
   const [typingUsers, setTypingUsers] = useState<Array<{ userId: string; columnId?: string }>>([]);
@@ -27,10 +28,12 @@ export function useRetroRoom({ roomId, user }: UseRetroRoomOptions) {
   const pendingUsersRef = useRef<UserSession[] | null>(null);
   const messageQueueRef = useRef<ClientMessage[]>([]);
   const roomNotFoundRef = useRef<boolean>(false);
+  const onUnauthorizedRef = useRef(onUnauthorized);
+  onUnauthorizedRef.current = onUnauthorized;
   const userRef = useRef<UserSession>(user);
   userRef.current = user;
 
-  // Rychlé ověření existence retrospektivy přes REST API (zabrání zaseknutí na neexistující/smazané tabuli)
+  // Rychlé ověření existence retrospektivy a oprávnění přes REST API (zabrání zaseknutí na neexistující/neoprávněné tabuli)
   useEffect(() => {
     if (!roomId) return;
     let cancelled = false;
@@ -39,9 +42,9 @@ export function useRetroRoom({ roomId, user }: UseRetroRoomOptions) {
 
     fetch(`/api/retrospectives/${encodeURIComponent(roomId)}`)
       .then((res) => {
-        if (!cancelled && res.status === 404) {
+        if (cancelled) return;
+        const closeSocketNow = (reason: string) => {
           roomNotFoundRef.current = true;
-          setRoomNotFound(true);
           if (reconnectTimeoutRef.current) {
             clearTimeout(reconnectTimeoutRef.current);
             reconnectTimeoutRef.current = null;
@@ -54,9 +57,20 @@ export function useRetroRoom({ roomId, user }: UseRetroRoomOptions) {
             ws.onerror = null;
             ws.onclose = null;
             try {
-              ws.close(1000, "Room not found");
+              ws.close(1000, reason);
             } catch {}
           }
+        };
+
+        if (res.status === 401) {
+          closeSocketNow("Unauthorized");
+          onUnauthorizedRef.current?.();
+          return;
+        }
+
+        if (res.status === 404 || res.status === 403) {
+          closeSocketNow("Room not found");
+          setRoomNotFound(true);
         }
       })
       .catch(() => {});

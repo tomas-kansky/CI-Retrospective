@@ -61,6 +61,13 @@ Každý agent by měl projít tímto kontrolním seznamem:
 - **Dostatečná dotyková plocha**: Drag handle má minimální velikost 32x36 px pro snadné uchopení prstem. Tělo karty zůstává bez `touchAction: "none"`, aby uživatelé na mobilu mohli sloupcem plynule vertikálně i horizontálně scrollovat.
 - **Haptická odezva**: Při zahájení tahu se na podporovaných zařízeních vyvolá jemná vibrace (`navigator.vibrate(20)`).
 
+### 2.6 Autentizace, izolace týmů a bezpečnostní pravidla
+- **PBKDF2 & Zero Plaintext Policy**: V kódu, dokumentaci ani commitech NESMÍ být uložena žádná hesla v otevřeném textu. V `apps/server/src/db/index.ts` jsou pouze předpočítané PBKDF2-SHA256 hashe (60 000 iterací) a v tabulce `teams` se ukládá pouze `password_hash` + HMAC index `password_lookup`.
+- **Unikátnost hesel napříč týmy**: Protože přihlášení funguje zadáním jediného hesla bez výběru týmu, každý nový či upravený tým musí mít unikátní heslo (odlišné od `admin` hesla i všech ostatních týmů – hlídá `isPasswordTaken()` v `apps/server/src/index.ts`).
+- **Session a 24h lockout**: `retro_session` a `retro_device_id` jsou `HttpOnly` cookies (parametr `Secure` se přidává automaticky při HTTPS, aby fungoval i lokální HTTP vývoj). Chybná hesla sleduje tabulka `login_attempts` v D1 – po 3 pokusech následuje 24hodinový zámek.
+- **WebSocket & Multi-tenancy check**: `forwardAuthorizedRoomRequest()` v `apps/server/src/index.ts` ověřuje platnost `retro_session` cookie a příslušnost retrospektivy k `session.teamId` ještě před předáním spojení do Durable Objectu `RetroRoom`.
+- **1h Sdílecí tokeny (`H+1`)**: Tlačítko *Sdílet* generuje jednorázově/časově omezený záznam v `share_tokens` (`expiresAt = now + 3600s`). Vypršený token umožňuje přihlášení odmítnout (`401`), ale již přihlášení uživatelé pokračují s platnou session cookie do konce její platnosti.
+
 ---
 
 ## 🛠️ 3. Operativní návody (Step-by-Step Playbooks)
@@ -209,12 +216,13 @@ git diff
 
 | Potřebuji pracovat na... | Cílový soubor / složka |
 |---|---|
+| Přihlášení a lockout 3 pokusy / 24h | `apps/web/src/components/LoginView.tsx`, `apps/server/src/auth.ts` |
+| Admin správa týmů a squadů | `apps/web/src/components/AdminTeamsView.tsx` |
 | Přetahování karet / Seskupování / UI tabule | `apps/web/src/components/BoardView.tsx` |
 | WebSocket klient / Heartbeat / Reconnect | `apps/web/src/hooks/useRetroRoom.ts` |
-| Zvířecí jména / Anonymní avatary | `apps/web/src/utils/names.ts` |
-| Hlavní dashboard / Seznam retro | `apps/web/src/App.tsx` |
-| Export do Markdown / CSV | `apps/web/src/components/ExportModal.tsx` |
-| Sdílení místnosti / QR kód | `apps/web/src/components/ShareModal.tsx` |
+| Zvířecí jména / Digitální zoo | `apps/web/src/utils/names.ts`, `apps/web/src/components/AnimalGalleryModal.tsx` |
+| Hlavní dashboard / Auth routing / Seznam retro | `apps/web/src/App.tsx` |
+| Sdílení místnosti či týmu (1h token + QR) | `apps/web/src/components/ShareModal.tsx` |
 | Hlášení chyb z UI | `apps/web/src/components/BugReportModal.tsx` |
 | Akční kroky / Úkoly (Drawer) | `apps/web/src/components/ActionItemsDrawer.tsx` |
 | WebSocket server / Durable Object / Stav tabule | `apps/server/src/room.ts` |

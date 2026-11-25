@@ -1,9 +1,41 @@
 import { sqliteTable, text, integer } from "drizzle-orm/sqlite-core";
 import { relations } from "drizzle-orm";
 
-export const retrospectives = sqliteTable("retrospectives", {
+export const appSettings = sqliteTable("app_settings", {
+  key: text("key").primaryKey(),
+  value: text("value").notNull(),
+  updatedAt: text("updated_at").notNull(),
+});
 
+export const teams = sqliteTable("teams", {
   id: text("id").primaryKey(),
+  slug: text("slug").notNull().unique(),
+  name: text("name").notNull(),
+  passwordHash: text("password_hash").notNull(),
+  passwordLookup: text("password_lookup"),
+  createdAt: text("created_at").notNull(),
+});
+
+export const shareTokens = sqliteTable("share_tokens", {
+  token: text("token").primaryKey(),
+  teamId: text("team_id")
+    .notNull()
+    .references(() => teams.id, { onDelete: "cascade" }),
+  roomId: text("room_id"),
+  createdAt: text("created_at").notNull(),
+  expiresAt: integer("expires_at").notNull(),
+});
+
+export const loginAttempts = sqliteTable("login_attempts", {
+  key: text("key").primaryKey(),
+  failedAttempts: integer("failed_attempts").notNull().default(0),
+  lockedUntil: integer("locked_until"),
+  updatedAt: text("updated_at").notNull(),
+});
+
+export const retrospectives = sqliteTable("retrospectives", {
+  id: text("id").primaryKey(),
+  teamId: text("team_id").notNull().default("client-interactions"),
   title: text("title").notNull(),
   phase: text("phase").notNull().default("BRAINSTORMING"),
   templateType: text("template_type").notNull().default("WENT_WELL_TO_IMPROVE"),
@@ -55,6 +87,7 @@ export const actionItems = sqliteTable("action_items", {
   retrospectiveId: text("retrospective_id")
     .notNull()
     .references(() => retrospectives.id, { onDelete: "cascade" }),
+  teamId: text("team_id").notNull().default("client-interactions"),
   text: text("text").notNull(),
   assignee: text("assignee"),
   status: text("status").notNull().default("OPEN"),
@@ -85,6 +118,18 @@ export const tickets = sqliteTable("tickets", {
   createdAt: text("created_at").notNull(),
   resolvedAt: text("resolved_at"),
 });
+
+export type AppSettingRecord = typeof appSettings.$inferSelect;
+export type InsertAppSetting = typeof appSettings.$inferInsert;
+
+export type TeamRecord = typeof teams.$inferSelect;
+export type InsertTeam = typeof teams.$inferInsert;
+
+export type ShareTokenRecord = typeof shareTokens.$inferSelect;
+export type InsertShareToken = typeof shareTokens.$inferInsert;
+
+export type LoginAttemptRecord = typeof loginAttempts.$inferSelect;
+export type InsertLoginAttempt = typeof loginAttempts.$inferInsert;
 
 export type TicketRecord = typeof tickets.$inferSelect;
 export type InsertTicket = typeof tickets.$inferInsert;

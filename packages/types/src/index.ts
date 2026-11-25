@@ -275,3 +275,38 @@ export const TicketSchema = CreateTicketSchema.extend({
   resolvedAt: z.string().optional(),
 });
 export type Ticket = z.infer<typeof TicketSchema>;
+
+// ==========================================
+// 5. AUTENTIZACE, TÝMY A SDÍLECÍ TOKENY
+// ==========================================
+
+export const UserRoleSchema = z.enum(["admin", "user"]);
+export type UserRole = z.infer<typeof UserRoleSchema>;
+
+export const TeamSchema = z.object({
+  id: z.string(),
+  slug: z.string(),
+  name: z.string(),
+  createdAt: z.string(),
+});
+export type Team = z.infer<typeof TeamSchema>;
+
+export const AdminTeamSummarySchema = TeamSchema.extend({
+  retroCount: z.number(),
+  openActionItemsCount: z.number(),
+});
+export type AdminTeamSummary = z.infer<typeof AdminTeamSummarySchema>;
+
+export interface AuthMeResponse {
+  authenticated: boolean;
+  role?: UserRole;
+  activeTeam?: Team | null;
+  lockedUntil?: number | null;
+}
+
+export interface ShareTokenResponse {
+  token: string;
+  expiresAt: number;
+  teamId: string;
+  roomId: string | null;
+}

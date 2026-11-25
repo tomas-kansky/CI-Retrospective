@@ -536,11 +536,22 @@ const DroppableColumn: React.FC<DroppableColumnProps> = ({ column, children }) =
 interface BoardViewProps {
   roomId: string;
   user: UserSession;
+  teamName?: string;
+  isAdmin?: boolean;
   onBack: () => void;
   onUpdateUser?: (updated: UserSession) => void;
+  onUnauthorized?: () => void;
 }
 
-export const BoardView: React.FC<BoardViewProps> = ({ roomId, user, onBack, onUpdateUser }) => {
+export const BoardView: React.FC<BoardViewProps> = ({
+  roomId,
+  user,
+  teamName,
+  isAdmin = false,
+  onBack,
+  onUpdateUser,
+  onUnauthorized,
+}) => {
   const {
     state,
     onlineUsers,
@@ -560,7 +571,7 @@ export const BoardView: React.FC<BoardViewProps> = ({ roomId, user, onBack, onUp
     removeVote,
     controlTimer,
     setTyping,
-  } = useRetroRoom({ roomId, user });
+  } = useRetroRoom({ roomId, user, onUnauthorized });
 
   // Pokud daná retrospektiva neexistuje (např. smazaná nebo stará cached URL), okamžitě přesměrujeme na Home Page
   useEffect(() => {
@@ -1484,7 +1495,7 @@ export const BoardView: React.FC<BoardViewProps> = ({ roomId, user, onBack, onUp
                         zIndex: 10 - i,
                       }}
                     >
-                      {getAnimalVisualInfo(u.name).emoji}
+                      {u.name === "Admin" ? "🛡️" : getAnimalVisualInfo(u.name).emoji}
                     </div>
                   ))}
                   {uniqueOnlineUsers.length > 5 && (
@@ -1607,7 +1618,7 @@ export const BoardView: React.FC<BoardViewProps> = ({ roomId, user, onBack, onUp
                                 fontWeight: 800,
                               }}
                             >
-                              {getAnimalVisualInfo(u.name).emoji}
+                              {u.name === "Admin" ? "🛡️" : getAnimalVisualInfo(u.name).emoji}
                             </div>
                             <span
                               style={{
@@ -1638,78 +1649,80 @@ export const BoardView: React.FC<BoardViewProps> = ({ roomId, user, onBack, onUp
                     })}
                   </div>
 
-                  {/* Profile & Name change section */}
-                  <div
-                    style={{
-                      borderTop: "1px solid var(--border-color)",
-                      paddingTop: "12px",
-                      display: "flex",
-                      flexDirection: "column",
-                      gap: "8px",
-                    }}
-                  >
-                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                      <span style={{ fontSize: "0.78rem", color: "var(--text-muted)", fontWeight: 600 }}>
-                        Vaše jméno:
-                      </span>
-                      <button
-                        type="button"
-                        onClick={handleRollRandomName}
-                        title="Vygenerovat nové náhodné zvíře ve stylu Google Docs"
-                        style={{
-                          background: "transparent",
-                          border: "none",
-                          color: "var(--accent-cyan)",
-                          cursor: "pointer",
-                          fontSize: "0.75rem",
-                          display: "flex",
-                          alignItems: "center",
-                          gap: "4px",
-                          fontWeight: 600,
-                        }}
-                      >
-                        <Sparkles size={12} />
-                        <span>Náhodné zvíře</span>
-                      </button>
-                    </div>
+                  {/* Profile & Name change section (pouze pro běžné uživatele, admin zůstává označen jako Admin) */}
+                  {!isAdmin && (
+                    <div
+                      style={{
+                        borderTop: "1px solid var(--border-color)",
+                        paddingTop: "12px",
+                        display: "flex",
+                        flexDirection: "column",
+                        gap: "8px",
+                      }}
+                    >
+                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                        <span style={{ fontSize: "0.78rem", color: "var(--text-muted)", fontWeight: 600 }}>
+                          Vaše jméno:
+                        </span>
+                        <button
+                          type="button"
+                          onClick={handleRollRandomName}
+                          title="Vygenerovat nové náhodné zvíře ve stylu Google Docs"
+                          style={{
+                            background: "transparent",
+                            border: "none",
+                            color: "var(--accent-cyan)",
+                            cursor: "pointer",
+                            fontSize: "0.75rem",
+                            display: "flex",
+                            alignItems: "center",
+                            gap: "4px",
+                            fontWeight: 600,
+                          }}
+                        >
+                          <Sparkles size={12} />
+                          <span>Náhodné zvíře</span>
+                        </button>
+                      </div>
 
-                    <div style={{ display: "flex", gap: "6px" }}>
-                      <input
-                        type="text"
-                        value={customNameInput}
-                        onChange={(e) => setCustomNameInput(e.target.value)}
-                        onKeyDown={(e) => {
-                          if (e.key === "Enter") handleSaveName(customNameInput);
-                        }}
-                        placeholder="Napište jméno..."
-                        style={{
-                          flex: 1,
-                          padding: "6px 10px",
-                          borderRadius: "var(--radius-sm)",
-                          background: "var(--bg-secondary)",
-                          border: "1px solid var(--border-color)",
-                          color: "var(--text-main)",
-                          fontSize: "0.82rem",
-                        }}
-                      />
-                      <button
-                        type="button"
-                        onClick={() => handleSaveName(customNameInput)}
-                        style={{
-                          padding: "6px 10px",
-                          borderRadius: "var(--radius-sm)",
-                          background: "var(--accent-indigo)",
-                          color: "#fff",
-                          border: "none",
-                          fontSize: "0.8rem",
-                          fontWeight: 600,
-                          cursor: "pointer",
-                        }}
-                      >
-                        Uložit
-                      </button>
+                      <div style={{ display: "flex", gap: "6px" }}>
+                        <input
+                          type="text"
+                          value={customNameInput}
+                          onChange={(e) => setCustomNameInput(e.target.value)}
+                          onKeyDown={(e) => {
+                            if (e.key === "Enter") handleSaveName(customNameInput);
+                          }}
+                          placeholder="Napište jméno..."
+                          style={{
+                            flex: 1,
+                            padding: "6px 10px",
+                            borderRadius: "var(--radius-sm)",
+                            background: "var(--bg-secondary)",
+                            border: "1px solid var(--border-color)",
+                            color: "var(--text-main)",
+                            fontSize: "0.82rem",
+                          }}
+                        />
+                        <button
+                          type="button"
+                          onClick={() => handleSaveName(customNameInput)}
+                          style={{
+                            padding: "6px 10px",
+                            borderRadius: "var(--radius-sm)",
+                            background: "var(--accent-indigo)",
+                            color: "#fff",
+                            border: "none",
+                            fontSize: "0.8rem",
+                            fontWeight: 600,
+                            cursor: "pointer",
+                          }}
+                        >
+                          Uložit
+                        </button>
+                      </div>
                     </div>
-                  </div>
+                  )}
                 </div>
               )}
             </div>
@@ -2234,6 +2247,7 @@ export const BoardView: React.FC<BoardViewProps> = ({ roomId, user, onBack, onUp
         onClose={() => setIsShareOpen(false)}
         roomId={roomId}
         roomTitle={state.title}
+        teamName={teamName}
       />
 
       <ActionItemsDrawer

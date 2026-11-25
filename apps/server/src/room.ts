@@ -16,6 +16,8 @@ export interface Env {
   GITHUB_TOKEN?: string;
   GITHUB_OWNER?: string;
   GITHUB_REPO?: string;
+  AUTH_SECRET?: string;
+  ADMIN_PASSWORD_HASH?: string;
 }
 
 interface SocketAttachment {
